@@ -16,7 +16,8 @@ class Receiver {
     this.protos = protos;
     this.slots = slots;
     if (protos === null) {
-      this._nil = new Singleton('Nil', [this], null);
+      this._nil = new Receiver('Nil', [this], null);
+      this._rootObject = this;
     }
   }
 
@@ -25,6 +26,13 @@ class Receiver {
       return this._nil;
     }
     return this.protos[0].Nil;
+  }
+
+  get RootObject() {
+    if (this.protos === null) {
+      return this._rootObject;
+    }
+    return this.protos[0].RootObject;
   }
 
   /**
@@ -59,49 +67,6 @@ class Receiver {
 }
 
 class Terminator {}
-
-class Str extends Receiver {
-  /**
-   * @param {Receiver} rootObject
-   * @param {string} value
-   */
-  constructor(rootObject, value) {
-    super(value, [rootObject], null);
-    this.value = value;
-  }
-}
-
-class Num extends Receiver {
-  /**
-   * @param {Receiver} rootObject
-   * @param {number} value
-   */
-  constructor(rootObject, value) {
-    super(
-      value,
-      [rootObject],
-      new Map([
-        [
-          '+',
-          new InternalMethod(
-            rootObject,
-            (sender, message, target, slotContext) => {
-              const arg0Msg = message.getArgAt(0);
-              const arg0 = arg0Msg?.doInContext(sender);
-              if (!arg0Msg || !arg0 || !(arg0 instanceof Num)) {
-                throw new Error(
-                  "Exception: argument 0 to method '+' must be a Number, not a 'nil'",
-                );
-              }
-              return new Num(rootObject, arg0.value + target.value);
-            },
-          ),
-        ],
-      ]),
-    );
-    this.value = value;
-  }
-}
 
 class Message extends Receiver {
   /**
@@ -170,6 +135,7 @@ class Message extends Receiver {
           msg,
           target,
           foundSlot.slotContext,
+          super.RootObject,
         );
       }
 
@@ -252,11 +218,10 @@ class Method extends Receiver {
 class InternalMethod extends Receiver {
   /**
    *
-   * @param {Receiver} rootObject
-   * @param {(sender: Receiver, message: Message, target: Receiver, slotContext: Receiver) => Receiver} func
+   * @param {(sender: Receiver, message: Message, target: Receiver, slotContext: Receiver, rootObject: Receiver) => Receiver} func
    */
-  constructor(rootObject, func) {
-    super(id('InternalMethod'), [rootObject], null);
+  constructor(id, func) {
+    super(id, null, null);
     this.func = func;
   }
 
@@ -268,27 +233,60 @@ class InternalMethod extends Receiver {
    * @param {Receiver} slotContext context in which slot was found. This is
    * usually the same as `target`, but may be different if the slot was
    * found in a prototype.
+   * @param {Receiver} rootObject
    * @returns {Receiver}
    */
-  activate(sender, message, target, slotContext) {
-    return this.func(sender, message, target, slotContext);
+  activate(sender, message, target, slotContext, rootObject) {
+    return this.func(sender, message, target, slotContext, rootObject);
   }
 }
 
-class Singleton extends Receiver {
-  constructor(id, rootObject) {
-    super(id, [rootObject], null);
+class Str extends Receiver {
+  /**
+   * @param {Receiver} rootObject
+   * @param {string} value
+   */
+  constructor(rootObject, value) {
+    super(value, [rootObject], null);
+    this.value = value;
   }
 }
 
-export function environment() {
-  const RootObject = new Receiver('Object', null, null);
-  const Nil = RootObject.Nil;
+const NumSlots = new Map();
+NumSlots.set(
+  '+',
+  new InternalMethod(
+    'Number_+',
+    (sender, message, target, slotContext, rootObject) => {
+      const arg0Msg = message.getArgAt(0);
+      const arg0 = arg0Msg?.doInContext(sender);
+      if (!arg0Msg || !arg0 || !(arg0 instanceof Num)) {
+        throw new Error(
+          "Exception: argument 0 to method '+' must be a Number, not a 'nil'",
+        );
+      }
+      return new Num(rootObject, arg0.value + target.value);
+    },
+  ),
+);
 
-  const rootObjectSlots = new Map();
-  rootObjectSlots.set(
-    'setSlot',
-    new InternalMethod(RootObject, (sender, message, target, slotContext) => {
+class Num extends Receiver {
+  /**
+   * @param {Receiver} rootObject
+   * @param {number} value
+   */
+  constructor(rootObject, value) {
+    super(value, [rootObject], NumSlots);
+    this.value = value;
+  }
+}
+
+const RootObjectSlots = new Map();
+RootObjectSlots.set(
+  'setSlot',
+  new InternalMethod(
+    'Object_setSlot',
+    (sender, message, target, slotContext, rootObject) => {
       const slotNameMsg = message.getArgAt(0);
       if (!slotNameMsg) {
         throw new Error(
@@ -303,17 +301,20 @@ export function environment() {
       }
       const slotNameStr = slotName.value;
       const slotBodyMsg = message.getArgAt(1);
-      let slotBody = Nil;
+      let slotBody = rootObject.Nil;
       if (slotBodyMsg) {
         slotBody = slotBodyMsg.doInContext(sender);
       }
       target.setSlot(slotNameStr, slotBody);
       return slotBody;
-    }),
-  );
-  rootObjectSlots.set(
-    'method',
-    new InternalMethod(RootObject, (sender, message, target, slotContext) => {
+    },
+  ),
+);
+RootObjectSlots.set(
+  'method',
+  new InternalMethod(
+    'Object_method',
+    (sender, message, target, slotContext, rootObject) => {
       /** @type [Message] */
       const messageArgs = message.args || [];
       const methodArgs = messageArgs.slice(0, -1);
@@ -326,13 +327,14 @@ export function environment() {
         return arg.name;
       });
       const methodBody = messageArgs[messageArgs.length - 1];
-      const method = new Method(RootObject, methodArgNames, methodBody);
+      const method = new Method(rootObject, methodArgNames, methodBody);
       return method;
-    }),
-  );
+    },
+  ),
+);
 
-  RootObject.slots = rootObjectSlots;
-
+export function environment() {
+  const RootObject = new Receiver('Object', null, RootObjectSlots);
   const Lobby = new Receiver(id('Lobby'), [RootObject], null);
 
   return {
