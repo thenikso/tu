@@ -67,6 +67,22 @@
           })(),
           expected: 3,
         });
+
+        assert({
+          given: 'inc := method(x, x + 1); inc(2)',
+          should: 'parses and say 3',
+          actual: (() => {
+            const env = environment();
+            // Parse
+            const msg = env.parse('inc := method(x, x +(1)); inc(2)');
+            console.log(msg.toString());
+            debugger;
+            // Evaluate
+            const r = msg.doInContext(env.Lobby);
+            return r.value;
+          })(),
+          expected: 3,
+        });
       });
     </script>
   </body>

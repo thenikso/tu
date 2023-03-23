@@ -1,3 +1,5 @@
+import ohm from '../vendor/ohm.mjs';
+
 //
 // API
 //
@@ -6,7 +8,7 @@ export function environment() {
   const RootObject = new Receiver('Object', null, RootObjectSlots);
   const Lobby = new Receiver(id('Lobby'), [RootObject], null);
 
-  return {
+  const env = {
     Object: RootObject,
     Lobby,
     terminator: () => new Terminator(),
@@ -14,7 +16,14 @@ export function environment() {
     number: (value) => new Num(RootObject, value),
     message: (name, args, next) => new Message(RootObject, name, args, next),
     method: (args, body) => new Method(RootObject, args ?? [], body),
+    /** @type {(string) => Message} */
+    parse: (source) => {
+      const match = grammar.match(source, 'Program');
+      const msg = semantics(match).toMessage(env);
+      return msg;
+    },
   };
+  return env;
 }
 
 //
@@ -174,6 +183,35 @@ class Message extends Receiver {
     // TODO deep copy
     this.next = next;
     return next;
+  }
+
+  toString() {
+    let str = '';
+    let msg = this;
+    let inArgs = false;
+    do {
+      if (msg.name instanceof Terminator) {
+        str = str.trimEnd();
+        str += ';';
+        str += inArgs ? ' ' : '\n';
+      } else if (msg.name instanceof Str) {
+        str += '"' + msg.name.value + '" ';
+      } else if (msg.name instanceof Num) {
+        str += msg.name.value + ' ';
+      } else {
+        str += msg.name;
+        if (msg.args) {
+          inArgs = true;
+          str += '(';
+          str += msg.args.map((arg) => arg.toString().trimEnd()).join(', ');
+          str += ')';
+          inArgs = false;
+        }
+        str += ' ';
+      }
+      msg = msg.next;
+    } while (msg);
+    return str;
   }
 }
 
@@ -340,6 +378,185 @@ const RootObjectSlots = {
     },
   ),
 };
+
+//
+// Parser
+//
+
+// Debug it at https://ohmlang.github.io/editor/#
+const grammar = ohm.grammar(String.raw`Io {
+  Program
+    = Exps Terminator?
+
+  Exps
+    = Exps Terminator Exp -- many
+    | Exp                 -- single
+
+  Exp
+    = ident ("::=" | ":=" | "=") Exp   -- assignMacro
+    | Exp Message                      -- multiMessage
+    | Message                          -- singleMessage
+    | "(" Exp ")"                      -- paren
+
+  Message
+    = Symbol Arguments -- args
+    | Symbol
+
+  Arguments
+    = "(" ListOf<Exps, ","> ")"
+
+  Symbol
+    = number | string | ident
+
+  Terminator
+    = ";" // this should? have a newline after it but as syntactic rule it doesn't work
+          // I should convert all to lexycal? maybe later
+
+  ident  (an identifier)
+    = (~("(" | ")" | "[" | "]" | "{" | "}" | "\"" | "," | ";" | space) any)+
+
+  number (a number)
+    = digit* "." digit+  -- float
+    | digit+             -- int
+    // TODO exponentials, hex
+
+  // TODO escape sequences
+  string
+  	= "\"" (~"\"" any)* "\""
+}`);
+const semantics = grammar.createSemantics();
+semantics.addOperation('toMessage(env)', {
+  Program(exps, _1) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return exps.toMessage(env);
+  },
+  Exps_single(exp) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return exp.toMessage(env);
+  },
+  Exps_many(exps, term, exp) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    const msg = exps.toMessage(env);
+    /** @type {ReturnType<(typeof env)['message']>} */
+    let endMsg = msg;
+    while (endMsg.next) {
+      endMsg = endMsg.next;
+    }
+    endMsg = endMsg.setNext(term.toMessage(env));
+    endMsg.setNext(exp.toMessage(env));
+    return msg;
+  },
+  Exp_assignMacro(symbol, assign, exp) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    let assignMethod;
+    switch (assign.sourceString) {
+      case '::=':
+        assignMethod = 'newSlot';
+        break;
+      case ':=':
+        assignMethod = 'setSlot';
+        break;
+      case '=':
+        assignMethod = 'updateSlot';
+        break;
+      default:
+        throw new Error(`Unknown assignment method: ${assign.sourceString}`);
+    }
+
+    return env.message(assignMethod, [
+      env.message(env.string(symbol.sourceString)),
+      exp.toMessage(env),
+    ]);
+  },
+  Exp_paren(_1, exp, _2) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return exp.toMessage(env);
+  },
+  Exp_singleMessage(exp) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    const msg = exp.toMessage(env);
+    return msg;
+  },
+  Exp_multiMessage(exp, message) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    /** @type {ReturnType<(typeof env)['message']>} */
+    const msg = exp.toMessage(env);
+    let endMsg = msg;
+    while (endMsg.next) {
+      endMsg = endMsg.next;
+    }
+    endMsg.setNext(message.toMessage(env));
+    return msg;
+  },
+  Message(symbol) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    const literal = symbol.toMessage(env);
+    return literal;
+  },
+  Message_args(symbol, args) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    /** @type {ReturnType<(typeof env)['message']>} */
+    const msg = symbol.toMessage(env);
+    msg.args = args.toMessage(env);
+    return msg;
+  },
+  Arguments(_1, args, _2) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    const msgs = args.asIteration().children.map((exps) => exps.toMessage(env));
+    return msgs;
+  },
+  Symbol(symbol) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return symbol.toMessage(env);
+  },
+  Terminator(_1) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return env.message(env.terminator());
+  },
+  // primitives
+  ident(id) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return env.message(id.sourceString);
+  },
+  number(chars) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return env.message(env.number(parseInt(chars.sourceString, 10)));
+  },
+  string(l, chars, r) {
+    /** @type {ReturnType<typeof environment>} */
+    const env = this.args.env;
+
+    return env.message(env.string(chars.sourceString));
+  },
+});
 
 //
 // Utils
