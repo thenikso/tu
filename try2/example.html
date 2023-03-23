@@ -21,8 +21,8 @@
 
             // hello := "world"
             const p = env.message('setSlot', [
-              env.message(env.literal('hello')),
-              env.message(env.literal('world')),
+              env.message(env.string('hello')),
+              env.message(env.string('world')),
             ]);
             let c = p;
             // terminator
@@ -35,6 +35,37 @@
             return r.value;
           })(),
           expected: 'world',
+        });
+
+        assert({
+          given: 'inc := method(x, x + 1); inc(2)',
+          should: 'say 3',
+          actual: (() => {
+            const env = environment();
+
+            // inc := method(x, x + 1)
+            const p = env.message('setSlot', [
+              env.message(env.string('inc')),
+              env.message('method', [
+                env.message('x'),
+                env.message(
+                  'x',
+                  null,
+                  env.message('+', [env.message(env.number(1))]),
+                ),
+              ]),
+            ]);
+            let c = p;
+            // terminator
+            c = c.setNext(env.message(env.terminator()));
+            // inc(2)
+            c = c.setNext(env.message('inc', [env.message(env.number(2))]));
+
+            // Evaluate
+            const r = p.doInContext(env.Lobby);
+            return r.value;
+          })(),
+          expected: 3,
         });
       });
     </script>

@@ -15,6 +15,16 @@ class Receiver {
     this.id = id;
     this.protos = protos;
     this.slots = slots;
+    if (protos === null) {
+      this._nil = new Singleton('Nil', [this], null);
+    }
+  }
+
+  get Nil() {
+    if (this.protos === null) {
+      return this._nil;
+    }
+    return this.protos[0].Nil;
   }
 
   /**
@@ -50,33 +60,62 @@ class Receiver {
 
 class Terminator {}
 
-class Literal extends Receiver {
+class Str extends Receiver {
   /**
    * @param {Receiver} rootObject
-   * @param {string | number} value
+   * @param {string} value
    */
   constructor(rootObject, value) {
     super(value, [rootObject], null);
     this.value = value;
   }
+}
 
-  get type() {
-    return typeof this.value;
+class Num extends Receiver {
+  /**
+   * @param {Receiver} rootObject
+   * @param {number} value
+   */
+  constructor(rootObject, value) {
+    super(
+      value,
+      [rootObject],
+      new Map([
+        [
+          '+',
+          new InternalMethod(
+            rootObject,
+            (sender, message, target, slotContext) => {
+              const arg0Msg = message.getArgAt(0);
+              const arg0 = arg0Msg?.doInContext(sender);
+              if (!arg0Msg || !arg0 || !(arg0 instanceof Num)) {
+                throw new Error(
+                  "Exception: argument 0 to method '+' must be a Number, not a 'nil'",
+                );
+              }
+              return new Num(rootObject, arg0.value + target.value);
+            },
+          ),
+        ],
+      ]),
+    );
+    this.value = value;
   }
 }
 
 class Message extends Receiver {
   /**
    * @param {Receiver} rootObject
-   * @param {string | Literal | Terminator} name
+   * @param {string | Str | Num | Terminator} name
    * @param {[Message]=} args
+   * @param {Message=} next
    */
-  constructor(rootObject, name, args) {
+  constructor(rootObject, name, args, next) {
     super(id('Message'), [rootObject], null);
 
     this.name = name;
     this.args = args;
-    this.next = null;
+    this.next = next ?? null;
   }
 
   /**
@@ -109,16 +148,18 @@ class Message extends Receiver {
         continue;
       }
 
-      if (msg.name instanceof Literal) {
+      if (msg.name instanceof Str || msg.name instanceof Num) {
         cursor = msg.name;
         target = cursor;
         msg = msg.next;
         continue;
       }
 
-      const foundSlot = anObject.findSlot(msg.name);
+      const foundSlot = target.findSlot(msg.name);
       if (!foundSlot) {
-        throw new Error(`Exception: Message does not respond to '${msg.name}'`);
+        throw new Error(
+          `Exception: ${target.id} does not respond to '${msg.name}'`,
+        );
       }
 
       cursor = foundSlot.slot;
@@ -136,7 +177,7 @@ class Message extends Receiver {
       msg = msg.next;
     } while (msg);
 
-    return cursor;
+    return cursor || super.Nil;
   }
 
   /**
@@ -151,13 +192,34 @@ class Message extends Receiver {
   }
 }
 
+class Locals extends Receiver {
+  /**
+   *
+   * @param {Receiver} target
+   * @param {[[string, Message]]} args
+   */
+  constructor(target, args) {
+    super(
+      id('locals'),
+      [target],
+      new Map([
+        ['self', target],
+        // TODO `call`
+        ...args,
+      ]),
+    );
+  }
+}
+
 class Method extends Receiver {
   /**
    * @param {Receiver} rootObject
+   * @param {[string]} argNames
    * @param {Message} body
    */
-  constructor(rootObject, body) {
+  constructor(rootObject, argNames, body) {
     super(id('Method'), [rootObject], null);
+    this.argNames = argNames;
     this.body = body;
   }
 
@@ -172,7 +234,18 @@ class Method extends Receiver {
    * @returns {Receiver}
    */
   activate(sender, message, target, slotContext) {
-    return this.body.doInContext(target, sender);
+    const locals = new Locals(
+      target,
+      this.argNames.map((argName, i) => {
+        const argMsg = message.getArgAt(i);
+        let argValue = super.Nil;
+        if (argMsg) {
+          argValue = argMsg.doInContext(sender);
+        }
+        return [argName, argValue];
+      }),
+    );
+    return this.body.doInContext(locals, sender);
   }
 }
 
@@ -183,7 +256,7 @@ class InternalMethod extends Receiver {
    * @param {(sender: Receiver, message: Message, target: Receiver, slotContext: Receiver) => Receiver} func
    */
   constructor(rootObject, func) {
-    super(id('Method'), [rootObject], null);
+    super(id('InternalMethod'), [rootObject], null);
     this.func = func;
   }
 
@@ -210,7 +283,7 @@ class Singleton extends Receiver {
 
 export function environment() {
   const RootObject = new Receiver('Object', null, null);
-  const Nil = new Singleton('Nil', RootObject);
+  const Nil = RootObject.Nil;
 
   const rootObjectSlots = new Map();
   rootObjectSlots.set(
@@ -222,8 +295,8 @@ export function environment() {
           "Exception: argument 0 to method 'setSlot' must be a string. Got nil instead.",
         );
       }
-      const slotName = slotNameMsg.doInContext(slotContext);
-      if (!(slotName instanceof Literal) || slotName.type !== 'string') {
+      const slotName = slotNameMsg.doInContext(sender);
+      if (!(slotName instanceof Str)) {
         throw new Error(
           "Exception: argument 0 to method 'setSlot' must be a string.",
         );
@@ -232,10 +305,29 @@ export function environment() {
       const slotBodyMsg = message.getArgAt(1);
       let slotBody = Nil;
       if (slotBodyMsg) {
-        slotBody = slotBodyMsg.doInContext(slotContext);
+        slotBody = slotBodyMsg.doInContext(sender);
       }
       target.setSlot(slotNameStr, slotBody);
       return slotBody;
+    }),
+  );
+  rootObjectSlots.set(
+    'method',
+    new InternalMethod(RootObject, (sender, message, target, slotContext) => {
+      /** @type [Message] */
+      const messageArgs = message.args || [];
+      const methodArgs = messageArgs.slice(0, -1);
+      const methodArgNames = methodArgs.map((arg, i) => {
+        if (arg.next || typeof arg.name !== 'string') {
+          throw new Error(
+            `Exception: argument ${i} to method 'method' must be a symbol`,
+          );
+        }
+        return arg.name;
+      });
+      const methodBody = messageArgs[messageArgs.length - 1];
+      const method = new Method(RootObject, methodArgNames, methodBody);
+      return method;
     }),
   );
 
@@ -247,8 +339,9 @@ export function environment() {
     Object: RootObject,
     Lobby,
     terminator: () => new Terminator(),
-    literal: (value) => new Literal(RootObject, value),
-    message: (name, args) => new Message(RootObject, name, args),
-    method: (body) => new Method(RootObject, body),
+    string: (value) => new Str(RootObject, value),
+    number: (value) => new Num(RootObject, value),
+    message: (name, args, next) => new Message(RootObject, name, args, next),
+    method: (args, body) => new Method(RootObject, args ?? [], body),
   };
 }
