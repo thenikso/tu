@@ -9,6 +9,13 @@ I had an idea to "compile" it to efficient javascript but it may or may not come
 later.
 Instead I'll try a "dumb" approach and see how it goes. Probably with `Proxy`es.
 
+## TODO
+
+- [x] Parse Io
+- [ ] Parse assignment operators
+- [ ] Parse operators to get proper precedence or do it on a second pass to prepare for parser in Io
+- [ ] Generate code
+
 ## OHM grammar
 
 From the IO guide and a bit the iota implementation I came up with this:
@@ -50,3 +57,12 @@ Arithmetic {
     = "\"" (~"\"" any)* "\""
 }
 ```
+
+## The more I read..
+
+About io I understand how cool it is. And what I might neet to change to get
+better js interops.
+
+Anyway, instead of starting with parsing. I could instead do a JS api that the
+parser would target. Sort of like IO intermediate language in JS.
+This would be to explore the message passing and how to implement that in JS.

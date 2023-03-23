@@ -1,0 +1,42 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Try 2 - IO compiler</title>
+  </head>
+  <body>
+    <script type="module">
+      import '../vendor/tap-console.mjs';
+      import { describe } from '../vendor/riteway.mjs';
+
+      import { environment } from './try2.mjs';
+
+      describe('Try2', async (assert) => {
+        assert({
+          given: 'hello := "world"; hello',
+          should: 'say "world"',
+          actual: (() => {
+            const env = environment();
+
+            // hello := "world"
+            const p = env.message('setSlot', [
+              env.message(env.literal('hello')),
+              env.message(env.literal('world')),
+            ]);
+            let c = p;
+            // terminator
+            c = c.setNext(env.message(env.terminator()));
+            // hello
+            c = c.setNext(env.message('hello'));
+
+            // Evaluate
+            const r = p.doInContext(env.Lobby);
+            return r.value;
+          })(),
+          expected: 'world',
+        });
+      });
+    </script>
+  </body>
+</html>
