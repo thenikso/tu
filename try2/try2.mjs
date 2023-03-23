@@ -8,13 +8,15 @@ function id(prefix) {
 
 class Receiver {
   /**
+   * TODO make `internalSlots` and `slots`, internal ones can not be modified
    * @param {Receiver[] | null} protos
-   * @param {Map<string, Receiver> | null} slots
+   * @param {Record<string, Receiver> | null} internalSlots
    */
-  constructor(id, protos, slots) {
+  constructor(id, protos, internalSlots) {
     this.id = id;
     this.protos = protos;
-    this.slots = slots;
+    this.internalSlots = internalSlots;
+    this.slots = null;
     if (protos === null) {
       this._nil = new Receiver('Nil', [this], null);
       this._rootObject = this;
@@ -42,6 +44,8 @@ class Receiver {
   findSlot(slotName) {
     if (this.slots && this.slots.has(slotName)) {
       return { slot: this.slots.get(slotName), slotContext: this };
+    } else if (this.internalSlots && this.internalSlots[slotName]) {
+      return { slot: this.internalSlots[slotName], slotContext: this };
     } else if (this.protos) {
       for (const proto of this.protos) {
         const slot = proto.findSlot(slotName);
@@ -165,15 +169,11 @@ class Locals extends Receiver {
    * @param {[[string, Message]]} args
    */
   constructor(target, args) {
-    super(
-      id('locals'),
-      [target],
-      new Map([
-        ['self', target],
-        // TODO `call`
-        ...args,
-      ]),
-    );
+    super(id('locals'), [target], {
+      self: target,
+      // TODO `call`
+    });
+    this.slots = new Map(args);
   }
 }
 
@@ -252,10 +252,8 @@ class Str extends Receiver {
   }
 }
 
-const NumSlots = new Map();
-NumSlots.set(
-  '+',
-  new InternalMethod(
+const NumSlots = {
+  '+': new InternalMethod(
     'Number_+',
     (sender, message, target, slotContext, rootObject) => {
       const arg0Msg = message.getArgAt(0);
@@ -268,7 +266,7 @@ NumSlots.set(
       return new Num(rootObject, arg0.value + target.value);
     },
   ),
-);
+};
 
 class Num extends Receiver {
   /**
@@ -281,10 +279,8 @@ class Num extends Receiver {
   }
 }
 
-const RootObjectSlots = new Map();
-RootObjectSlots.set(
-  'setSlot',
-  new InternalMethod(
+const RootObjectSlots = {
+  setSlot: new InternalMethod(
     'Object_setSlot',
     (sender, message, target, slotContext, rootObject) => {
       const slotNameMsg = message.getArgAt(0);
@@ -309,10 +305,7 @@ RootObjectSlots.set(
       return slotBody;
     },
   ),
-);
-RootObjectSlots.set(
-  'method',
-  new InternalMethod(
+  method: new InternalMethod(
     'Object_method',
     (sender, message, target, slotContext, rootObject) => {
       /** @type [Message] */
@@ -331,7 +324,7 @@ RootObjectSlots.set(
       return method;
     },
   ),
-);
+};
 
 export function environment() {
   const RootObject = new Receiver('Object', null, RootObjectSlots);
