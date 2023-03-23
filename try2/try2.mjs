@@ -1,10 +1,25 @@
-function id(prefix) {
-  return (
-    prefix +
-    '_0x' +
-    Math.abs(Date.now() ^ (Math.random() * 10000000000000)).toString(32)
-  );
+//
+// API
+//
+
+export function environment() {
+  const RootObject = new Receiver('Object', null, RootObjectSlots);
+  const Lobby = new Receiver(id('Lobby'), [RootObject], null);
+
+  return {
+    Object: RootObject,
+    Lobby,
+    terminator: () => new Terminator(),
+    string: (value) => new Str(RootObject, value),
+    number: (value) => new Num(RootObject, value),
+    message: (name, args, next) => new Message(RootObject, name, args, next),
+    method: (args, body) => new Method(RootObject, args ?? [], body),
+  };
 }
+
+//
+// Engine
+//
 
 class Receiver {
   /**
@@ -326,17 +341,14 @@ const RootObjectSlots = {
   ),
 };
 
-export function environment() {
-  const RootObject = new Receiver('Object', null, RootObjectSlots);
-  const Lobby = new Receiver(id('Lobby'), [RootObject], null);
+//
+// Utils
+//
 
-  return {
-    Object: RootObject,
-    Lobby,
-    terminator: () => new Terminator(),
-    string: (value) => new Str(RootObject, value),
-    number: (value) => new Num(RootObject, value),
-    message: (name, args, next) => new Message(RootObject, name, args, next),
-    method: (args, body) => new Method(RootObject, args ?? [], body),
-  };
+function id(prefix) {
+  return (
+    prefix +
+    '_0x' +
+    Math.abs(Date.now() ^ (Math.random() * 10000000000000)).toString(32)
+  );
 }
