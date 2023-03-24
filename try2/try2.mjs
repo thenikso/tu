@@ -94,6 +94,7 @@ class Receiver {
   }
 }
 
+// TODO make this a subclass of Message
 class Terminator {}
 
 class Message extends Receiver {
@@ -396,7 +397,6 @@ const grammar = ohm.grammar(String.raw`Io {
     = ident ("::=" | ":=" | "=") Exp   -- assignMacro
     | Exp Message                      -- multiMessage
     | Message                          -- singleMessage
-    | "(" Exp ")"                      -- paren
 
   Message
     = Symbol Arguments -- args
@@ -430,6 +430,7 @@ semantics.addOperation('toMessage(env)', {
     /** @type {ReturnType<typeof environment>} */
     const env = this.args.env;
 
+    // TODO apply operators macros
     return exps.toMessage(env);
   },
   Exps_single(exp) {
@@ -475,12 +476,6 @@ semantics.addOperation('toMessage(env)', {
       env.message(env.string(symbol.sourceString)),
       exp.toMessage(env),
     ]);
-  },
-  Exp_paren(_1, exp, _2) {
-    /** @type {ReturnType<typeof environment>} */
-    const env = this.args.env;
-
-    return exp.toMessage(env);
   },
   Exp_singleMessage(exp) {
     /** @type {ReturnType<typeof environment>} */

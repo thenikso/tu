@@ -75,8 +75,8 @@
             const env = environment();
             // Parse
             const msg = env.parse('inc := method(x, x +(1)); inc(2)');
+            console.log(msg);
             console.log(msg.toString());
-            debugger;
             // Evaluate
             const r = msg.doInContext(env.Lobby);
             return r.value;
