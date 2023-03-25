@@ -316,6 +316,12 @@ const ReceiverDescriptors = {
       return method;
     }),
   },
+  '==': {
+    enumerable: true,
+    value: function Receiver_equals(other) {
+      return this === other;
+    },
+  },
 };
 
 const Num = Object.create(null, {
@@ -334,6 +340,39 @@ const Num = Object.create(null, {
       return this + b;
     },
   },
+  '-': {
+    enumerable: true,
+    value: function Number_minus(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(`argument 0 to method '-' must be a Number. Got ${b}.`);
+      }
+      return this - b;
+    },
+  },
+  '*': {
+    enumerable: true,
+    value: function Number_times(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(`argument 0 to method '*' must be a Number. Got ${b}.`);
+      }
+      return this * b;
+    },
+  },
+  '/': {
+    enumerable: true,
+    value: function Number_dividedBy(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(`argument 0 to method '/' must be a Number. Got ${b}.`);
+      }
+      return this / b;
+    },
+  },
+  sqrt: {
+    enumerable: true,
+    value: function Number_sqrt() {
+      return Math.sqrt(this);
+    },
+  },
 });
 
 const Str = Object.create(null, {
@@ -341,6 +380,15 @@ const Str = Object.create(null, {
     enumerable: true,
     get() {
       return 'String';
+    },
+  },
+});
+
+const Bool = Object.create(null, {
+  id: {
+    enumerable: true,
+    get() {
+      return 'Boolean';
     },
   },
 });
@@ -363,6 +411,7 @@ const MessageDescriptors = {
      * @param {Receiver=} locals
      */
     value: function Message_doInContext(context, locals) {
+      const rootReceiver = this.proto;
       /** @type {Message} */
       let msg = this;
       let cursor = null;
@@ -382,7 +431,11 @@ const MessageDescriptors = {
           continue;
         }
 
-        if (typeof msg.name === 'string' || typeof msg.name === 'number') {
+        if (
+          typeof msg.name === 'string' ||
+          typeof msg.name === 'number' ||
+          typeof msg.name === 'boolean'
+        ) {
           cursor = msg.name;
           target = cursor;
           msg = msg.next;
@@ -394,12 +447,18 @@ const MessageDescriptors = {
           typeof msg.name === 'symbol' &&
           (slotName = Symbol.keyFor(msg.name))
         ) {
-          if (typeof target === 'number') {
-            slot = Num[slotName];
-          } else if (typeof target === 'string') {
-            slot = Str[slotName];
-          } else {
-            slot = target[slotName];
+          switch (typeof target) {
+            case 'number':
+              slot = Num[slotName] ?? rootReceiver[slotName];
+              break;
+            case 'string':
+              slot = Str[slotName] ?? rootReceiver[slotName];
+              break;
+            case 'boolean':
+              slot = Bool[slotName] ?? rootReceiver[slotName];
+              break;
+            default:
+              slot = target[slotName];
           }
         }
         if (!slot) {

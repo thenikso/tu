@@ -9,16 +9,20 @@
     <script type="module">
       import '../vendor/tap-console.mjs';
       import { describe } from '../vendor/riteway.mjs';
+      import { createUtils } from './test/utils.mjs';
 
       import { environment } from './try3.mjs';
 
       const globalEnv = environment();
-      for(const [name, value] of Object.entries(globalEnv)) {
+      for (const [name, value] of Object.entries(globalEnv)) {
         window[name] = value;
       }
 
       describe('Try3', async (assert) => {
-        const { assertReturns, assertError, assertCode } = testUtils(assert);
+        const { assertReturn, assertError, assertCode } = createUtils(
+          environment,
+          assert,
+        );
 
         assertCode('1+2*3', '1 +(2 *(3))');
 
@@ -27,48 +31,11 @@
           `argument 0 to method '+' must be a Number. Got null.`,
         );
 
-        assertReturns('1+2', 3);
-        assertReturns('hello := "world"; hello', 'world');
-        assertReturns('inc := method(x, x + 1); inc(2)', 3);
+        assertReturn('1+2', 3);
+        assertReturn('hello := "world"; hello', 'world');
+        assertReturn('inc := method(x, x + 1); inc(2)', 3);
       });
-
-      function testUtils(assert) {
-        return {
-          assertReturns(code, ret) {
-            assert({
-              given: `\`${code}\``,
-              should: `return ${typeof ret === 'string' ? `"${ret}"` : ret}`,
-              actual: environment().eval(code),
-              expected: ret,
-            });
-          },
-          assertError(code, error) {
-            assert({
-              given: `\`${code}\``,
-              should: `throw "${error}"`,
-              actual: (() => {
-                let res;
-                let err;
-                try {
-                  res = environment().eval(code);
-                } catch (e) {
-                  err = e;
-                }
-                return err?.message ?? res;
-              })(),
-              expected: error,
-            });
-          },
-          assertCode(code, expected) {
-            assert({
-              given: `\`${code}\``,
-              should: `parse as \`${expected}\``,
-              actual: environment().parse(code).toString(),
-              expected,
-            });
-          },
-        };
-      }
     </script>
+    <script type="module" src="./test/tutorial.mjs"></script>
   </body>
 </html>
