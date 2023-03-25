@@ -30,6 +30,10 @@
           '1+',
           `argument 0 to method '+' must be a Number. Got null.`,
         );
+        assertError(
+          'err := method(self, self)',
+          `Cannot use 'self' as an argument name`,
+        );
 
         assertReturn('1+2', 3);
         assertReturn('hello := "world"; hello', 'world');

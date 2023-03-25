@@ -64,12 +64,6 @@ export function environment() {
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Receiver, inst),
     },
-    '': {
-      enumerable: false,
-      get() {
-        return this;
-      },
-    },
     ...ReceiverDescriptors,
   });
 
@@ -78,13 +72,6 @@ export function environment() {
       value: (inst) => hasProto(Message, inst),
     },
     ...MessageDescriptors,
-  });
-
-  const Call = Object.create(Receiver, {
-    [Symbol.hasInstance]: {
-      value: (inst) => hasProto(Call, inst),
-    },
-    ...CallDescriptors,
   });
 
   /**
@@ -267,6 +254,11 @@ export function environment() {
 
 function asMethod(...args) {
   const argNames = args.slice(0, -1);
+  if (argNames.includes('self')) {
+    throw new Error(`Cannot use 'self' as an argument name`);
+  } else if (argNames.includes('call')) {
+    throw new Error(`Cannot use 'call' as an argument name`);
+  }
   const fn = args[args.length - 1];
   fn[MethodInfoSymbol] = argNames;
   return fn;
@@ -315,6 +307,12 @@ const ReceiverDescriptors = {
       });
       return method;
     }),
+  },
+  '': {
+    enumerable: false,
+    get() {
+      return this;
+    },
   },
   '==': {
     enumerable: true,
@@ -449,6 +447,7 @@ const MessageDescriptors = {
         ) {
           switch (typeof target) {
             case 'number':
+              // Simulate Num being a prototype of Receiver
               slot = Num[slotName] ?? rootReceiver[slotName];
               break;
             case 'string':
@@ -480,8 +479,32 @@ const MessageDescriptors = {
                 enumerable: true,
                 value: target,
               },
-              // TODO call
-              // TODO will need Receiver here to create Call? maybe use null?
+              // TODO only create if needed in method
+              call: Object.create(rootReceiver, {
+                // current object for the method (aka `this` in js or `self`)
+                target: {
+                  enumerable: true,
+                  value: target,
+                },
+                // the method being called
+                activated: {
+                  enumerable: true,
+                  value: cursor,
+                },
+                // message used to call the method
+                message: {
+                  enumerable: true,
+                  value: msg,
+                },
+                // locals object of caller
+                // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
+                sender: {
+                  enumerable: true,
+                  value: sender,
+                },
+                // missing `slotContext` which should be the proto object that
+                // defines the slot/method being called
+              }),
             });
             // Eval args requested by method
             const localArgs = [];
@@ -550,10 +573,6 @@ const MessageDescriptors = {
       return str.trim();
     },
   },
-};
-
-const CallDescriptors = {
-  // TODO call descriptors
 };
 
 //
