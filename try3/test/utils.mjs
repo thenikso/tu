@@ -1,5 +1,12 @@
 export function createUtils(createEnv, assert) {
   let currentEnv = null;
+  let currentLogs = [];
+  const logEnv = () =>
+    createEnv({
+      log(message) {
+        currentLogs.push(message);
+      },
+    });
   return {
     assertReturn(code, ret) {
       assert({
@@ -34,10 +41,21 @@ export function createUtils(createEnv, assert) {
         expected,
       });
     },
-    withSameEnv(fn) {
-      const env = createEnv();
-      currentEnv = env;
-      fn(env);
+    assertLogs(code, ...logs) {
+      assert({
+        given: `\`${code}\``,
+        should: `logs ${logs.map((l) => `"${l}"`).join(', ')}`,
+        actual: (() => {
+          currentLogs = [];
+          (currentEnv ?? logEnv()).eval(code);
+          return currentLogs;
+        })(),
+        expected: logs,
+      });
+    },
+    withEnv(fn, env) {
+      currentEnv = env ?? logEnv();
+      fn(currentEnv);
       currentEnv = null;
     },
   };

@@ -13,13 +13,28 @@ describe('Tutorial: Math', async (assert) => {
 });
 
 describe('Tutorial: Variables', async (assert) => {
-  const { assertReturn, withSameEnv } = createUtils(environment, assert);
+  const { assertReturn, withEnv } = createUtils(environment, assert);
 
-  withSameEnv(() => {
+  withEnv(() => {
     assertReturn('a := 1', 1);
     assertReturn('a', 1);
     assertReturn('b := 2 * 3', 6);
     assertReturn('a + b', 7);
+  });
+});
+
+describe('Tutorial: ', async (assert) => {
+  const { assertReturn, withEnv, assertLogs } = createUtils(
+    environment,
+    assert,
+  );
+
+  withEnv(() => {
+    assertLogs(
+      `a := 2;
+      (a == 1) ifTrue("a is one" println) ifFalse("a is not one" println)`,
+      'a is not one',
+    );
   });
 });
 

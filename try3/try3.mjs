@@ -59,19 +59,32 @@ const MessageTerminatorSymbol = Symbol('Terminator');
  */
 const MethodInfoSymbol = Symbol('Method');
 
-export function environment() {
+export function environment(options) {
+  // TODO figure out options
+
   const Receiver = Object.create(null, {
+    ...ReceiverDescriptors,
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Receiver, inst),
     },
-    ...ReceiverDescriptors,
+    println: {
+      enumerable: true,
+      value: function () {
+        if (options?.log) {
+          options?.log(this);
+        } else {
+          console.log(this);
+        }
+        return this;
+      },
+    },
   });
 
   const Message = Object.create(Receiver, {
+    ...MessageDescriptors,
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Message, inst),
     },
-    ...MessageDescriptors,
   });
 
   /**
@@ -208,6 +221,15 @@ export function environment() {
         return: 14,
       },
     },
+    assignOperators: {
+      // TODO make a map
+      enumerable: true,
+      value: {
+        '::=': 'newSlot',
+        ':=': 'setSlot',
+        '=': 'updateSlot',
+      },
+    },
   });
 
   const Lobby = Object.create(Receiver, {
@@ -229,7 +251,12 @@ export function environment() {
     parse: (code) => {
       const match = grammar.match(code, 'Program');
       const infixPriorities = OperatorTable.operators;
-      const msg = semantics(match).toMessage(env, infixPriorities);
+      const assignOperators = OperatorTable.assignOperators;
+      const msg = semantics(match).toMessage(
+        env,
+        assignOperators,
+        infixPriorities,
+      );
       return msg;
     },
     eval: (code) => {
@@ -389,6 +416,32 @@ const Bool = Object.create(null, {
       return 'Boolean';
     },
   },
+  ifTrue: {
+    enumerable: true,
+    value: asMethod(function Boolean_ifTrue() {
+      const trueBlock = arguments[0];
+      if (typeof trueBlock === 'undefined') {
+        throw new Error(`argument 0 to method 'ifTrue' is required`);
+      }
+      if (this.self === true) {
+        trueBlock.doInContext(this);
+      }
+      return this;
+    }),
+  },
+  ifFalse: {
+    enumerable: true,
+    value: asMethod(function Boolean_ifFalse() {
+      const falseBlock = arguments[0];
+      if (typeof falseBlock === 'undefined') {
+        throw new Error(`argument 0 to method 'ifFalse' is required`);
+      }
+      if (this.self === false) {
+        falseBlock.doInContext(this);
+      }
+      return this;
+    }),
+  },
 });
 
 const MessageDescriptors = {
@@ -474,38 +527,42 @@ const MessageDescriptors = {
           methodInfo = cursor[MethodInfoSymbol];
           if (methodInfo) {
             // generate `locals` with `target` as proto
-            const locals = Object.create(target, {
-              self: {
-                enumerable: true,
-                value: target,
-              },
-              // TODO only create if needed in method
-              call: Object.create(rootReceiver, {
-                // current object for the method (aka `this` in js or `self`)
-                target: {
+            const locals = Object.create(
+              // TODO this happens if traget is number etc. is it ok?
+              typeof target === 'object' ? target : sender,
+              {
+                self: {
                   enumerable: true,
                   value: target,
                 },
-                // the method being called
-                activated: {
-                  enumerable: true,
-                  value: cursor,
-                },
-                // message used to call the method
-                message: {
-                  enumerable: true,
-                  value: msg,
-                },
-                // locals object of caller
-                // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
-                sender: {
-                  enumerable: true,
-                  value: sender,
-                },
-                // missing `slotContext` which should be the proto object that
-                // defines the slot/method being called
-              }),
-            });
+                // TODO only create if needed in method
+                call: Object.create(rootReceiver, {
+                  // current object for the method (aka `this` in js or `self`)
+                  target: {
+                    enumerable: true,
+                    value: target,
+                  },
+                  // the method being called
+                  activated: {
+                    enumerable: true,
+                    value: cursor,
+                  },
+                  // message used to call the method
+                  message: {
+                    enumerable: true,
+                    value: msg,
+                  },
+                  // locals object of caller
+                  // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
+                  sender: {
+                    enumerable: true,
+                    value: sender,
+                  },
+                  // missing `slotContext` which should be the proto object that
+                  // defines the slot/method being called
+                }),
+              },
+            );
             // Eval args requested by method
             const localArgs = [];
             for (i = 0, l = methodInfo.length; i < l; i++) {
@@ -617,11 +674,11 @@ const grammar = ohm.grammar(String.raw`Io {
     | Exp                 -- single
 
   Exp
-    = ident ("::=" | ":=" | "=") Exp   -- assignMacro
-    | Exp Message                      -- multiMessage
+    = Exp Message                      -- multiMessage
     | Message                          -- singleMessage
-    | "{" Exps "}"                     -- curlyBrackets
-    | "[" Exps "]"                     -- squareBrackets
+    | "(" Exp ")"                      -- parentheses
+    | "{" Exp "}"                      -- curlyBrackets
+    | "[" Exp "]"                      -- squareBrackets
 
   Message
     = Symbol Arguments -- args
@@ -651,23 +708,76 @@ const grammar = ohm.grammar(String.raw`Io {
   	= "\"" (~"\"" any)* "\""
 }`);
 const semantics = grammar.createSemantics();
-semantics.addOperation('toMessage(env, infixes)', {
+semantics.addOperation('toMessage(env, assigns, infixes)', {
   Program(exps, _1) {
     /** @type {Environment} */
     const env = this.args.env;
+    /** @type {Record<string, string>} */
+    const assignsMacros = this.args.assigns;
     /** @type {Record<string, number>} */
     const infixPriorities = this.args.infixes;
     const allInfixes = Array.from(Object.keys(infixPriorities));
 
     // Compile message
+    const assigns = {
+      macros: assignsMacros,
+      /** @type {Record<string, [Message]>} */
+      messagesByMacro: {},
+    };
     const infixes = {
       allInfixes,
       priorities: infixPriorities,
       messagesByPriority: {},
     };
-    const msg = exps.toMessage(env, infixes);
+    let msg = exps.toMessage(env, assigns, infixes);
 
-    // apply operators macros
+    //
+    // apply assign macros
+    //
+
+    // a := b -> setSlot("a", b)
+    for (const [assignMethod, messages] of Object.entries(
+      assigns.messagesByMacro,
+    )) {
+      for (const assignOp of messages) {
+        const assignName = assignOp.previous;
+        const assignFollow = assignName?.previous;
+        const assignValue = assignOp.next;
+        let assignEnd = assignValue.next;
+        while (assignEnd && assignEnd?.name !== MessageTerminatorSymbol) {
+          assignEnd = assignEnd.next;
+        }
+        if (!assignName) {
+          throw new Error(`Missing assign name`);
+        }
+        if (typeof assignName.name !== 'symbol') {
+          throw new Error(`Assign name must be a symbol`);
+        }
+        if (!assignValue) {
+          throw new Error(`Missing assign value`);
+        }
+        if (assignEnd) {
+          assignEnd.previous?.setNext(null);
+        }
+        const assignMsg = env.message(assignMethod, [
+          env.messageLiteral(Symbol.keyFor(assignName.name)),
+          assignValue,
+        ]);
+        if (assignFollow) {
+          assignFollow.setNext(assignMsg);
+        } else {
+          msg = assignMsg;
+        }
+        if (assignEnd) {
+          assignMsg.setNext(assignEnd);
+        }
+      }
+    }
+
+    //
+    // apply infixes macros
+    //
+
     /**
      * Gether infixes by priority
      * @type {Record<number, string[]>}
@@ -734,66 +844,38 @@ semantics.addOperation('toMessage(env, infixes)', {
     return msg;
   },
   Exps_single(exp) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
-    return exp.toMessage(env, infixes);
+    return exp.toMessage(env, assigns, infixes);
   },
   Exps_many(exps, term, exp) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
     /** @type {Message} */
-    const msg = exps.toMessage(env, infixes);
-    const termMsg = term.toMessage(env, infixes);
+    const msg = exps.toMessage(env, assigns, infixes);
+    const termMsg = term.toMessage(env, assigns, infixes);
     msg.last.setNext(termMsg);
-    termMsg.setNext(exp.toMessage(env, infixes));
+    termMsg.setNext(exp.toMessage(env, assigns, infixes));
     return msg;
   },
-  Exp_assignMacro(symbol, assign, exp) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
-
-    let assignMethod;
-    switch (assign.sourceString) {
-      case '::=':
-        assignMethod = 'newSlot';
-        break;
-      case ':=':
-        assignMethod = 'setSlot';
-        break;
-      case '=':
-        assignMethod = 'updateSlot';
-        break;
-      default:
-        throw new Error(`Unknown assignment method: ${assign.sourceString}`);
-    }
-
-    return env.message(assignMethod, [
-      env.messageLiteral(symbol.sourceString),
-      exp.toMessage(env, infixes),
-    ]);
-  },
   Exp_singleMessage(exp) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
-    const msg = exp.toMessage(env, infixes);
+    const msg = exp.toMessage(env, assigns, infixes);
     return msg;
   },
   Exp_multiMessage(exp, message) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
     /** @type {Message} */
-    const msg = exp.toMessage(env, infixes);
-    msg.last.setNext(message.toMessage(env, infixes));
+    const msg = exp.toMessage(env, assigns, infixes);
+    msg.last.setNext(message.toMessage(env, assigns, infixes));
     return msg;
+  },
+  Exp_parentheses(lb, exp, rb) {
+    const { env, assigns, infixes } = this.args;
+
+    return exp.toMessage(env, assigns, infixes);
   },
   Exp_curlyBrackets(lb, exp, rb) {
     // TODO use env.Receiver.curlyBrackets
@@ -804,47 +886,47 @@ semantics.addOperation('toMessage(env, infixes)', {
     throw new Error('Brackets not implemented');
   },
   Message(symbol) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
-    const literalOrSymbolMsg = symbol.toMessage(env, infixes);
+    const literalOrSymbolMsg = symbol.toMessage(env, assigns, infixes);
     if (typeof literalOrSymbolMsg.name === 'symbol') {
-      const infixPriority =
-        infixes.priorities[Symbol.keyFor(literalOrSymbolMsg.name)];
-      if (infixPriority) {
-        infixes.messagesByPriority[infixPriority] ??= [];
-        infixes.messagesByPriority[infixPriority].push(literalOrSymbolMsg);
+      const symbolString = Symbol.keyFor(literalOrSymbolMsg.name);
+      // Check for assign macros
+      const assignMacro = assigns.macros[symbolString];
+      if (assignMacro) {
+        assigns.messagesByMacro[assignMacro] ??= [];
+        assigns.messagesByMacro[assignMacro].push(literalOrSymbolMsg);
+      } else {
+        // Check for infix macros
+        const infixPriority = infixes.priorities[symbolString];
+        if (infixPriority) {
+          infixes.messagesByPriority[infixPriority] ??= [];
+          infixes.messagesByPriority[infixPriority].push(literalOrSymbolMsg);
+        }
       }
     }
     return literalOrSymbolMsg;
   },
   Message_args(symbol, args) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
     /** @type {Message} */
-    const msg = symbol.toMessage(env, infixes);
-    msg.setArguments(args.toMessage(env, infixes));
+    const msg = symbol.toMessage(env, assigns, infixes);
+    msg.setArguments(args.toMessage(env, assigns, infixes));
     return msg;
   },
   Arguments(_1, args, _2) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
     const msgs = args
       .asIteration()
-      .children.map((exps) => exps.toMessage(env, infixes));
+      .children.map((exps) => exps.toMessage(env, assigns, infixes));
     return msgs;
   },
   Symbol(symbol) {
-    /** @type {Environment} */
-    const env = this.args.env;
-    const infixes = this.args.infixes;
+    const { env, assigns, infixes } = this.args;
 
-    return symbol.toMessage(env, infixes);
+    return symbol.toMessage(env, assigns, infixes);
   },
   Terminator(_1) {
     /** @type {Environment} */
