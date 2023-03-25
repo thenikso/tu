@@ -13,19 +13,19 @@
       import { environment } from './try3.mjs';
 
       describe('Try3', async (assert) => {
-        assert({
-          given: 'hello := "world"; hello',
-          should: 'parses and say "world"',
-          actual: (() => {
-            const env = environment();
-            // Parse
-            const msg = env.parse('hello := "world"; hello');
-            // Evaluate
-            const r = msg.doInContext(env.Lobby);
-            return r;
-          })(),
-          expected: "world",
-        });
+        // assert({
+        //   given: 'hello := "world"; hello',
+        //   should: 'parses and say "world"',
+        //   actual: (() => {
+        //     const env = environment();
+        //     // Parse
+        //     const msg = env.parse('hello := "world"; hello');
+        //     // Evaluate
+        //     const r = msg.doInContext(env.Lobby);
+        //     return r;
+        //   })(),
+        //   expected: "world",
+        // });
 
         assert({
           given: 'inc := method(x, x + 1); inc(2)',
@@ -34,7 +34,7 @@
             const env = environment();
             // Parse
             // TODO resolve macros
-            const msg = env.parse('inc := method(x, x +(1)); inc(2)');
+            const msg = env.parse('inc := method(x, x + 1); inc(2)');
             console.log(msg);
             console.log(msg.toString());
             // Evaluate

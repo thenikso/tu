@@ -174,7 +174,19 @@ export function environment() {
     /** @type {(code: string) => Message} */
     parse: (code) => {
       const match = grammar.match(code, 'Program');
-      const msg = semantics(match).toMessage(env);
+      // TODO generate from `OperatorTable addOperator("!!", 3)` calls
+      const infixPriorities = {
+        '==': 2,
+        '!=': 2,
+        '+': 4,
+        '-': 4,
+        '*': 5,
+        '/': 5,
+        '%': 5,
+        '**': 6,
+        // TODO add more
+      };
+      const msg = semantics(match).toMessage(env, infixPriorities);
       return msg;
     },
   };
@@ -221,9 +233,7 @@ const ReceiverDescriptors = {
           msg.name === MessageTerminatorSymbol ||
           typeof msg.name !== 'symbol'
         ) {
-          throw new Error(
-            `Exception: argument ${i} to method 'method' must be a symbol`,
-          );
+          throw new Error(`argument ${i} to method 'method' must be a symbol`);
         }
         return Symbol.keyFor(msg.name);
       });
@@ -246,11 +256,20 @@ const Num = Object.create(null, {
   },
   '+': {
     enumerable: true,
-    value: function Number_plus(b) {
+    value: function Number_plus(b = null) {
       if (typeof b !== 'number') {
-        throw new Error(`Exception: argument 0 to method '+' must be a Number`);
+        throw new Error(`argument 0 to method '+' must be a Number. Got ${b}.`);
       }
       return this + b;
+    },
+  },
+});
+
+const Str = Object.create(null, {
+  id: {
+    enumerable: true,
+    get() {
+      return 'String';
     },
   },
 });
@@ -299,20 +318,22 @@ const MessageDescriptors = {
           continue;
         }
 
+        slot = null;
         if (
           typeof msg.name === 'symbol' &&
           (slotName = Symbol.keyFor(msg.name))
         ) {
-          // TODO string
           if (typeof target === 'number') {
             slot = Num[slotName];
+          } else if (typeof target === 'string') {
+            slot = Str[slotName];
           } else {
             slot = target[slotName];
           }
         }
         if (!slot) {
           throw new Error(
-            `Exception: ${target.id ?? typeof target} does not respond to '${
+            `${target.id ?? typeof target} does not respond to '${
               typeof msg.name === 'symbol' ? Symbol.keyFor(msg.name) : msg.name
             }'`,
           );
@@ -396,7 +417,7 @@ const MessageDescriptors = {
         }
         msg = msg.next;
       } while (msg);
-      return str;
+      return str.trim();
     },
   },
 };
@@ -478,34 +499,108 @@ const grammar = ohm.grammar(String.raw`Io {
   	= "\"" (~"\"" any)* "\""
 }`);
 const semantics = grammar.createSemantics();
-semantics.addOperation('toMessage(env)', {
+semantics.addOperation('toMessage(env, infixes)', {
   Program(exps, _1) {
     /** @type {Environment} */
     const env = this.args.env;
+    /** @type {Record<string, number>} */
+    const infixPriorities = this.args.infixes;
+    const allInfixes = Array.from(Object.keys(infixPriorities));
 
-    // TODO apply operators macros
-    return exps.toMessage(env);
+    // Compile message
+    const infixes = {
+      allInfixes,
+      priorities: infixPriorities,
+      messagesByPriority: {},
+    };
+    const msg = exps.toMessage(env, infixes);
+
+    // apply operators macros
+    /**
+     * Gether infixes by priority
+     * @type {Record<number, string[]>}
+     */
+    const infixesByPriority = {};
+    for (const [infix, priority] of Object.entries(infixPriorities)) {
+      if (!infixesByPriority[priority]) {
+        infixesByPriority[priority] = [];
+      }
+      infixesByPriority[priority].push(infix);
+    }
+    const allPriorities = Array.from(Object.keys(infixesByPriority)).map((x) =>
+      parseInt(x, 10),
+    );
+    /**
+     * Sort infix messages by priority (higher priority first)
+     * @type {[number, Message[]][]}
+     */
+    const infixMessages = Array.from(
+      Object.entries(infixes.messagesByPriority).map((x) => [
+        parseInt(x[0], 10),
+        x[1],
+      ]),
+    ).sort((a, b) => b[0] - a[0]);
+
+    /**
+     * We now want to transform infix messages in messages with a parameter:
+     *     a * b -> a *(b)
+     * But we need to keep in mind the priority of the infixes:
+     *    a + b * c -> a +(b *(c))
+     * Even if there are messasges with already resolved infixes:
+     *    a + b *(c) -> a +(b *(c))
+     * So we start from the highest priority and we use as argument of
+     * the resolved infix, the next messages while there are next messages
+     * with a (resolved) infix name.
+     */
+    for (const [priority, infixMsgs] of infixMessages) {
+      const infixesNamesAlreadyResolved = allPriorities
+        .filter((p) => p > priority)
+        .flatMap((p) => infixesByPriority[p]);
+      for (const infixMsg of infixMsgs) {
+        const arg = infixMsg.next;
+        let argEnd = arg.next;
+        while (
+          typeof argEnd?.name === 'symbol' &&
+          infixesNamesAlreadyResolved.includes(Symbol.keyFor(argEnd.name))
+        ) {
+          argEnd = argEnd.next;
+        }
+        // Cut arg until argEnd
+        if (argEnd) {
+          argEnd.prev.setNext(null);
+        }
+        // We are expecing infixMsg.arguments to be empty
+        infixMsg.setArguments([arg]);
+        // Set next to argEnd
+        infixMsg.setNext(argEnd);
+      }
+    }
+
+    return msg;
   },
   Exps_single(exp) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
-    return exp.toMessage(env);
+    return exp.toMessage(env, infixes);
   },
   Exps_many(exps, term, exp) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
     /** @type {Message} */
-    const msg = exps.toMessage(env);
-    const termMsg = term.toMessage(env);
+    const msg = exps.toMessage(env, infixes);
+    const termMsg = term.toMessage(env, infixes);
     msg.last.setNext(termMsg);
-    termMsg.setNext(exp.toMessage(env));
+    termMsg.setNext(exp.toMessage(env, infixes));
     return msg;
   },
   Exp_assignMacro(symbol, assign, exp) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
     let assignMethod;
     switch (assign.sourceString) {
@@ -524,53 +619,69 @@ semantics.addOperation('toMessage(env)', {
 
     return env.message(assignMethod, [
       env.messageLiteral(symbol.sourceString),
-      exp.toMessage(env),
+      exp.toMessage(env, infixes),
     ]);
   },
   Exp_singleMessage(exp) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
-    const msg = exp.toMessage(env);
+    const msg = exp.toMessage(env, infixes);
     return msg;
   },
   Exp_multiMessage(exp, message) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
     /** @type {Message} */
-    const msg = exp.toMessage(env);
-    msg.last.setNext(message.toMessage(env));
+    const msg = exp.toMessage(env, infixes);
+    msg.last.setNext(message.toMessage(env, infixes));
     return msg;
   },
   Message(symbol) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
-    const literal = symbol.toMessage(env);
-    return literal;
+    const literalOrSymbolMsg = symbol.toMessage(env, infixes);
+    if (typeof literalOrSymbolMsg.name === 'symbol') {
+      const infixPriority =
+        infixes.priorities[Symbol.keyFor(literalOrSymbolMsg.name)];
+      if (infixPriority) {
+        infixes.messagesByPriority[infixPriority] ??= [];
+        infixes.messagesByPriority[infixPriority].push(literalOrSymbolMsg);
+      }
+    }
+    return literalOrSymbolMsg;
   },
   Message_args(symbol, args) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
     /** @type {Message} */
-    const msg = symbol.toMessage(env);
-    msg.setArguments(args.toMessage(env));
+    const msg = symbol.toMessage(env, infixes);
+    msg.setArguments(args.toMessage(env, infixes));
     return msg;
   },
   Arguments(_1, args, _2) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
-    const msgs = args.asIteration().children.map((exps) => exps.toMessage(env));
+    const msgs = args
+      .asIteration()
+      .children.map((exps) => exps.toMessage(env, infixes));
     return msgs;
   },
   Symbol(symbol) {
     /** @type {Environment} */
     const env = this.args.env;
+    const infixes = this.args.infixes;
 
-    return symbol.toMessage(env);
+    return symbol.toMessage(env, infixes);
   },
   Terminator(_1) {
     /** @type {Environment} */
