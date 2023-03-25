@@ -1,0 +1,54 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Try 2 - IO compiler</title>
+  </head>
+  <body>
+    <script type="module">
+      import '../vendor/tap-console.mjs';
+      import { describe } from '../vendor/riteway.mjs';
+
+      import { environment } from './try3.mjs';
+
+      describe('Try3', async (assert) => {
+        assert({
+          given: 'hello := "world"; hello',
+          should: 'parses and say "world"',
+          actual: (() => {
+            const env = environment();
+            // Parse
+            const msg = env.parse('hello := "world"; hello');
+            // Evaluate
+            const r = msg.doInContext(env.Lobby);
+            return r;
+          })(),
+          expected: "world",
+        });
+
+        assert({
+          given: 'inc := method(x, x + 1); inc(2)',
+          should: 'parses and say 3',
+          actual: (() => {
+            const env = environment();
+            // Parse
+            // TODO resolve macros
+            const msg = env.parse('inc := method(x, x +(1)); inc(2)');
+            console.log(msg);
+            console.log(msg.toString());
+            // Evaluate
+            const r = msg.doInContext(env.Lobby);
+            return r;
+          })(),
+          expected: 3,
+        });
+      });
+
+      // const env = environment();
+      // for(const [name, value] of Object.entries(env)) {
+      //   window[name] = value;
+      // }
+    </script>
+  </body>
+</html>
