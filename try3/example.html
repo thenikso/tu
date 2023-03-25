@@ -12,32 +12,64 @@
 
       import { environment } from './try3.mjs';
 
-      describe('Try3', async (assert) => {
-        assertReturns('hello := "world"; hello', 'world');
-        assertReturns('inc := method(x, x + 1); inc(2)', 3);
-        assertReturns('1+2', 3);
-
-        // Utils
-
-        function assertReturns(code, ret) {
-          assert({
-            given: `\`${code}\``,
-            should: `return ${typeof ret === 'string' ? `"${ret}"` : ret}`,
-            actual: (() => {
-              const env = environment();
-              const msg = env.parse(code);
-              const r = msg.doInContext(env.Lobby);
-              return r;
-            })(),
-            expected: ret,
-          });
-        }
-      });
-
-      // const env = environment();
+      const globalEnv = environment();
+      window.tu = globalEnv.tu;
       // for(const [name, value] of Object.entries(env)) {
       //   window[name] = value;
       // }
+
+      describe('Try3', async (assert) => {
+        const { assertReturns, assertError, assertCode } = testUtils(assert);
+
+        assertCode('1+2*3', '1 +(2 *(3))');
+
+        assertError(
+          '1+',
+          `argument 0 to method '+' must be a Number. Got null.`,
+        );
+
+        assertReturns('1+2', 3);
+        assertReturns('hello := "world"; hello', 'world');
+        assertReturns('inc := method(x, x + 1); inc(2)', 3);
+      });
+
+      function testUtils(assert) {
+        return {
+          assertReturns(code, ret) {
+            assert({
+              given: `\`${code}\``,
+              should: `return ${typeof ret === 'string' ? `"${ret}"` : ret}`,
+              actual: environment().eval(code),
+              expected: ret,
+            });
+          },
+          assertError(code, error) {
+            assert({
+              given: `\`${code}\``,
+              should: `throw "${error}"`,
+              actual: (() => {
+                let res;
+                let err;
+                try {
+                  res = environment().eval(code);
+                } catch (e) {
+                  err = e;
+                }
+                return err?.message ?? res;
+              })(),
+              expected: error,
+            });
+          },
+          assertCode(code, expected) {
+            assert({
+              given: `\`${code}\``,
+              should: `parse as \`${expected}\``,
+              actual: environment().parse(code).toString(),
+              expected,
+            });
+          },
+        };
+      }
     </script>
   </body>
 </html>

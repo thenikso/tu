@@ -191,6 +191,21 @@ export function environment() {
       const msg = semantics(match).toMessage(env, infixPriorities);
       return msg;
     },
+    eval: (code) => {
+      const msg = env.parse(code);
+      const result = msg.doInContext(env.Lobby);
+      return result;
+    },
+    tu: (strings, ...values) => {
+      let code = '';
+      for (let i = 0; i < strings.length; i++) {
+        code += strings[i];
+        if (i < values.length) {
+          code += values[i];
+        }
+      }
+      return env.eval(code);
+    },
   };
 
   return env;
@@ -473,6 +488,8 @@ const grammar = ohm.grammar(String.raw`Io {
     = ident ("::=" | ":=" | "=") Exp   -- assignMacro
     | Exp Message                      -- multiMessage
     | Message                          -- singleMessage
+    | "{" Exps "}"                     -- curlyBrackets
+    | "[" Exps "]"                     -- squareBrackets
 
   Message
     = Symbol Arguments -- args
@@ -488,7 +505,6 @@ const grammar = ohm.grammar(String.raw`Io {
     = ";" // this should? have a newline after it but as syntactic rule it doesn't work
           // I should convert all to lexycal? maybe later
 
-  // TODO separate oeprands like '1+2'
   ident  (an identifier)
     = (~("(" | ")" | "[" | "]" | "{" | "}" | "\"" | "," | ";" | space | alnum) any)+
     | (~("(" | ")" | "[" | "]" | "{" | "}" | "\"" | "," | ";" | space) alnum)+
@@ -562,6 +578,9 @@ semantics.addOperation('toMessage(env, infixes)', {
         .flatMap((p) => infixesByPriority[p]);
       for (const infixMsg of infixMsgs) {
         const arg = infixMsg.next;
+        if (!arg) {
+          continue;
+        }
         let argEnd = arg.next;
         while (
           typeof argEnd?.name === 'symbol' &&
@@ -643,6 +662,12 @@ semantics.addOperation('toMessage(env, infixes)', {
     const msg = exp.toMessage(env, infixes);
     msg.last.setNext(message.toMessage(env, infixes));
     return msg;
+  },
+  Exp_curlyBrackets(lb, exp, rb) {
+    throw new Error('Brackets not implemented');
+  },
+  Exp_squareBrackets(lb, exp, rb) {
+    throw new Error('Brackets not implemented');
   },
   Message(symbol) {
     /** @type {Environment} */
