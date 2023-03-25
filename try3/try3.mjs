@@ -1,3 +1,5 @@
+// @ts-check
+
 import ohm from '../vendor/ohm.mjs';
 
 //
@@ -486,8 +488,10 @@ const grammar = ohm.grammar(String.raw`Io {
     = ";" // this should? have a newline after it but as syntactic rule it doesn't work
           // I should convert all to lexycal? maybe later
 
+  // TODO separate oeprands like '1+2'
   ident  (an identifier)
-    = (~("(" | ")" | "[" | "]" | "{" | "}" | "\"" | "," | ";" | space) any)+
+    = (~("(" | ")" | "[" | "]" | "{" | "}" | "\"" | "," | ";" | space | alnum) any)+
+    | (~("(" | ")" | "[" | "]" | "{" | "}" | "\"" | "," | ";" | space) alnum)+
 
   number (a number)
     = digit* "." digit+  -- float
