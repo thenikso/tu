@@ -13,10 +13,9 @@
       import { environment } from './try3.mjs';
 
       const globalEnv = environment();
-      window.tu = globalEnv.tu;
-      // for(const [name, value] of Object.entries(env)) {
-      //   window[name] = value;
-      // }
+      for(const [name, value] of Object.entries(globalEnv)) {
+        window[name] = value;
+      }
 
       describe('Try3', async (assert) => {
         const { assertReturns, assertError, assertCode } = testUtils(assert);

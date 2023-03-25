@@ -145,7 +145,7 @@ export function environment() {
       previous: {
         enumerable: true,
         get() {
-          return _prev?.deref();
+          return _prev?.deref() ?? null;
         },
       },
       setPrevious: {
@@ -157,6 +157,71 @@ export function environment() {
       },
     });
   }
+
+  // TODO this should be in core
+  const OperatorTable = Object.create(Receiver, {
+    [Symbol.hasInstance]: {
+      value: (inst) => hasProto(OperatorTable, inst),
+    },
+    id: idDescriptor('OperatorTable'),
+    operators: {
+      enumerable: true,
+      // TODO make it a Map
+      value: {
+        //0   ? @ @@
+        '?': 0,
+        '@': 0,
+        '@@': 0,
+        //1   **
+        '**': 1,
+        //2   % * /
+        '%': 2,
+        '*': 2,
+        '/': 2,
+        //3   + -
+        '+': 3,
+        '-': 3,
+        //4   << >>
+        '<<': 4,
+        '>>': 4,
+        //5   < <= > >=
+        '<': 5,
+        '<=': 5,
+        '>': 5,
+        '>=': 5,
+        //6   != ==
+        '!=': 6,
+        '==': 6,
+        //7   &
+        '&': 7,
+        //8   ^
+        '^': 8,
+        //9   |
+        '|': 9,
+        //10  && and
+        '&&': 10,
+        and: 10,
+        //11  or ||
+        '||': 11,
+        or: 11,
+        //12  ..
+        '..': 12,
+        //13  %= &= *= += -= /= <<= >>= ^= |=
+        '%=': 13,
+        '&=': 13,
+        '*=': 13,
+        '+=': 13,
+        '-=': 13,
+        '/=': 13,
+        '<<=': 13,
+        '>>=': 13,
+        '^=': 13,
+        '|=': 13,
+        //14  return
+        return: 14,
+      },
+    },
+  });
 
   const Lobby = Object.create(Receiver, {
     id: idDescriptor('Lobby'),
@@ -176,18 +241,7 @@ export function environment() {
     /** @type {(code: string) => Message} */
     parse: (code) => {
       const match = grammar.match(code, 'Program');
-      // TODO generate from `OperatorTable addOperator("!!", 3)` calls
-      const infixPriorities = {
-        '==': 2,
-        '!=': 2,
-        '+': 4,
-        '-': 4,
-        '*': 5,
-        '/': 5,
-        '%': 5,
-        '**': 6,
-        // TODO add more
-      };
+      const infixPriorities = OperatorTable.operators;
       const msg = semantics(match).toMessage(env, infixPriorities);
       return msg;
     },
@@ -551,7 +605,7 @@ semantics.addOperation('toMessage(env, infixes)', {
       parseInt(x, 10),
     );
     /**
-     * Sort infix messages by priority (higher priority first)
+     * Sort infix messages by priority (lower number means higher priority first)
      * @type {[number, Message[]][]}
      */
     const infixMessages = Array.from(
@@ -559,7 +613,7 @@ semantics.addOperation('toMessage(env, infixes)', {
         parseInt(x[0], 10),
         x[1],
       ]),
-    ).sort((a, b) => b[0] - a[0]);
+    ).sort((a, b) => a[0] - b[0]);
 
     /**
      * We now want to transform infix messages in messages with a parameter:
@@ -574,7 +628,7 @@ semantics.addOperation('toMessage(env, infixes)', {
      */
     for (const [priority, infixMsgs] of infixMessages) {
       const infixesNamesAlreadyResolved = allPriorities
-        .filter((p) => p > priority)
+        .filter((p) => p < priority)
         .flatMap((p) => infixesByPriority[p]);
       for (const infixMsg of infixMsgs) {
         const arg = infixMsg.next;
@@ -590,7 +644,7 @@ semantics.addOperation('toMessage(env, infixes)', {
         }
         // Cut arg until argEnd
         if (argEnd) {
-          argEnd.prev.setNext(null);
+          argEnd.previous.setNext(null);
         }
         // We are expecing infixMsg.arguments to be empty
         infixMsg.setArguments([arg]);
@@ -664,9 +718,11 @@ semantics.addOperation('toMessage(env, infixes)', {
     return msg;
   },
   Exp_curlyBrackets(lb, exp, rb) {
+    // TODO use env.Receiver.curlyBrackets
     throw new Error('Brackets not implemented');
   },
   Exp_squareBrackets(lb, exp, rb) {
+    // TODO use env.Receiver.curlyBrackets
     throw new Error('Brackets not implemented');
   },
   Message(symbol) {
