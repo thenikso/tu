@@ -96,10 +96,6 @@ export function environment(options) {
     },
   });
 
-  const Call = createReceiver('Call', Receiver, CallDescriptors);
-  const Num = createReceiver('Number', Receiver, NumDescriptors);
-  const Str = createReceiver('String', Receiver, StrDescriptors);
-  const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
   const OperatorTable = createReceiver('OperatorTable', Receiver, {
     // TODO make it a Map
     operators: {
@@ -168,8 +164,21 @@ export function environment(options) {
       },
     },
   });
+  const Call = createReceiver('Call', Receiver, CallDescriptors);
+  const Num = createReceiver('Number', Receiver, NumDescriptors);
+  const Str = createReceiver('String', Receiver, StrDescriptors);
+  const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
+  const List = createReceiver('List', Receiver, ListDescriptors);
 
   const Core = createReceiver('Core', Receiver, {
+    OperatorTable: {
+      enumerable: true,
+      value: OperatorTable,
+    },
+    Call: {
+      enumerable: true,
+      value: Call,
+    },
     Number: {
       enumerable: true,
       value: Num,
@@ -182,19 +191,16 @@ export function environment(options) {
       enumerable: true,
       value: Bool,
     },
-    OperatorTable: {
+    List: {
       enumerable: true,
-      value: OperatorTable,
+      value: List,
     },
   });
 
   const Lobby = createReceiver('Lobby', Core);
 
-  const Message = Object.create(Receiver, {
+  const Message = createReceiver('Message', Receiver, {
     ...MessageDescriptors,
-    [Symbol.hasInstance]: {
-      value: (inst) => hasProto(Message, inst),
-    },
     doInContext: {
       enumerable: true,
       value: makeMessage_doInContext(Call, Num, Str, Bool),
@@ -213,7 +219,6 @@ export function environment(options) {
     let _next = null;
     let _prev = null;
     return Object.create(Message, {
-      id: idDescriptor('Message'),
       name: {
         enumerable: true,
         get() {
@@ -636,6 +641,10 @@ const BoolDescriptors = {
       return this;
     }),
   },
+};
+
+const ListDescriptors = {
+  // TODO list descriptors
 };
 
 const MessageDescriptors = {

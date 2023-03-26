@@ -42,6 +42,12 @@ describe('Tutorial: ', async (assert) => {
   });
 });
 
+describe('Tutorial: List', async (assert) => {
+  const { assertReturn, withEnv } = createUtils(environment, assert);
+
+  assertReturn('d := List clone append(30, 10, 5, 20)', [30, 10, 5, 20]);
+});
+
 // describe('Tutorial: ', async (assert) => {
 //   const { assertReturn } = createUtils(environment, assert);
 
