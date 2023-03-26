@@ -59,9 +59,14 @@ const MessageTerminatorSymbol = Symbol('Terminator');
  */
 const MethodArgsSymbol = Symbol('Method');
 
-export function environment(options) {
-  // TODO figure out options
+/**
+ * A prototype generated with `protos` is a `Proxy` and will respond to
+ * this symbol to allow `Receiver.protos` to properly identify the
+ * prototype.
+ */
+const ProtosSymbol = Symbol('protos');
 
+export function environment(options) {
   const Receiver = Object.create(null, {
     ...ReceiverDescriptors,
     [Symbol.hasInstance]: {
@@ -91,17 +96,99 @@ export function environment(options) {
     },
   });
 
-  const Num = Object.create(Receiver, {
-    ...NumDescriptors,
+  const Call = createReceiver('Call', Receiver, CallDescriptors);
+  const Num = createReceiver('Number', Receiver, NumDescriptors);
+  const Str = createReceiver('String', Receiver, StrDescriptors);
+  const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
+  const OperatorTable = createReceiver('OperatorTable', Receiver, {
+    // TODO make it a Map
+    operators: {
+      enumerable: true,
+      value: {
+        //0   ? @ @@
+        '?': 0,
+        '@': 0,
+        '@@': 0,
+        //1   **
+        '**': 1,
+        //2   % * /
+        '%': 2,
+        '*': 2,
+        '/': 2,
+        //3   + -
+        '+': 3,
+        '-': 3,
+        //4   << >>
+        '<<': 4,
+        '>>': 4,
+        //5   < <= > >=
+        '<': 5,
+        '<=': 5,
+        '>': 5,
+        '>=': 5,
+        //6   != ==
+        '!=': 6,
+        '==': 6,
+        //7   &
+        '&': 7,
+        //8   ^
+        '^': 8,
+        //9   |
+        '|': 9,
+        //10  && and
+        '&&': 10,
+        and: 10,
+        //11  or ||
+        '||': 11,
+        or: 11,
+        //12  ..
+        '..': 12,
+        //13  %= &= *= += -= /= <<= >>= ^= |=
+        '%=': 13,
+        '&=': 13,
+        '*=': 13,
+        '+=': 13,
+        '-=': 13,
+        '/=': 13,
+        '<<=': 13,
+        '>>=': 13,
+        '^=': 13,
+        '|=': 13,
+        //14  return
+        return: 14,
+      },
+    },
+    // TODO make a map
+    assignOperators: {
+      enumerable: true,
+      value: {
+        '::=': 'newSlot',
+        ':=': 'setSlot',
+        '=': 'updateSlot',
+      },
+    },
   });
 
-  const Str = Object.create(Receiver, {
-    ...StrDescriptors,
+  const Core = createReceiver('Core', Receiver, {
+    Number: {
+      enumerable: true,
+      value: Num,
+    },
+    String: {
+      enumerable: true,
+      value: Str,
+    },
+    Boolean: {
+      enumerable: true,
+      value: Bool,
+    },
+    OperatorTable: {
+      enumerable: true,
+      value: OperatorTable,
+    },
   });
 
-  const Bool = Object.create(Receiver, {
-    ...BoolDescriptors,
-  });
+  const Lobby = createReceiver('Lobby', Core);
 
   const Message = Object.create(Receiver, {
     ...MessageDescriptors,
@@ -110,7 +197,7 @@ export function environment(options) {
     },
     doInContext: {
       enumerable: true,
-      value: makeMessage_doInContext(Receiver, Num, Str, Bool),
+      value: makeMessage_doInContext(Call, Num, Str, Bool),
     },
   });
 
@@ -185,84 +272,6 @@ export function environment(options) {
     });
   }
 
-  // TODO this should be in core
-  const OperatorTable = Object.create(Receiver, {
-    [Symbol.hasInstance]: {
-      value: (inst) => hasProto(OperatorTable, inst),
-    },
-    id: idDescriptor('OperatorTable'),
-    operators: {
-      enumerable: true,
-      // TODO make it a Map
-      value: {
-        //0   ? @ @@
-        '?': 0,
-        '@': 0,
-        '@@': 0,
-        //1   **
-        '**': 1,
-        //2   % * /
-        '%': 2,
-        '*': 2,
-        '/': 2,
-        //3   + -
-        '+': 3,
-        '-': 3,
-        //4   << >>
-        '<<': 4,
-        '>>': 4,
-        //5   < <= > >=
-        '<': 5,
-        '<=': 5,
-        '>': 5,
-        '>=': 5,
-        //6   != ==
-        '!=': 6,
-        '==': 6,
-        //7   &
-        '&': 7,
-        //8   ^
-        '^': 8,
-        //9   |
-        '|': 9,
-        //10  && and
-        '&&': 10,
-        and: 10,
-        //11  or ||
-        '||': 11,
-        or: 11,
-        //12  ..
-        '..': 12,
-        //13  %= &= *= += -= /= <<= >>= ^= |=
-        '%=': 13,
-        '&=': 13,
-        '*=': 13,
-        '+=': 13,
-        '-=': 13,
-        '/=': 13,
-        '<<=': 13,
-        '>>=': 13,
-        '^=': 13,
-        '|=': 13,
-        //14  return
-        return: 14,
-      },
-    },
-    assignOperators: {
-      // TODO make a map
-      enumerable: true,
-      value: {
-        '::=': 'newSlot',
-        ':=': 'setSlot',
-        '=': 'updateSlot',
-      },
-    },
-  });
-
-  const Lobby = Object.create(Receiver, {
-    id: idDescriptor('Lobby'),
-  });
-
   const env = {
     /** @type {Receiver} */
     Receiver,
@@ -310,9 +319,8 @@ export function environment(options) {
  * Creates a function to be assigned as `doInContext` on a Message.
  * It's done this way because we need instances of Receivers for the
  * specific environment.
- * TODO accept the Lobby instead and find Core Receivers from it
  */
-function makeMessage_doInContext(rootReceiver, Num, Str, Bool) {
+function makeMessage_doInContext(Call, Num, Str, Bool) {
   /**
    * @param {Receiver} context
    * @param {Receiver=} locals
@@ -329,7 +337,7 @@ function makeMessage_doInContext(rootReceiver, Num, Str, Bool) {
     let i, l;
     /** @type {MethodArgs} */
     let methodArgs;
-    do {
+    while (msg) {
       if (msg.name === MessageTerminatorSymbol) {
         cursor = null;
         target = context;
@@ -392,7 +400,7 @@ function makeMessage_doInContext(rootReceiver, Num, Str, Bool) {
             },
             call: {
               enumerable: true,
-              value: Object.create(rootReceiver, {
+              value: Object.create(Call, {
                 // current object for the method (aka `this` in js or `self`)
                 target: {
                   enumerable: true,
@@ -447,7 +455,7 @@ function makeMessage_doInContext(rootReceiver, Num, Str, Bool) {
 
       target = cursor;
       msg = msg.next;
-    } while (msg);
+    }
 
     return cursor;
   };
@@ -472,12 +480,22 @@ const ReceiverDescriptors = {
       return 'Receiver';
     },
   },
+  protos: {
+    enumerable: true,
+    get() {
+      const proto = Object.getPrototypeOf(this);
+      if (!proto) return [];
+      const protos = proto[ProtosSymbol];
+      return protos ?? [proto];
+    },
+  },
   proto: {
     enumerable: true,
     get() {
-      // TODO if supporting multiple prototypes with a Proxy,
-      // this needs to account for that and only return the first one
-      return Object.getPrototypeOf(this);
+      const proto = Object.getPrototypeOf(this);
+      if (!proto) return null;
+      const protos = proto[ProtosSymbol];
+      return protos ? protos[0] : proto;
     },
   },
   setSlot: {
@@ -509,9 +527,9 @@ const ReceiverDescriptors = {
       return method;
     }),
   },
-  evalArgAndReturnSelf: {
-    enumerable: true,
-  },
+  // evalArgAndReturnSelf: {
+  //   enumerable: true,
+  // },
   '': {
     enumerable: false,
     get() {
@@ -537,13 +555,11 @@ const ReceiverDescriptors = {
   },
 };
 
+const CallDescriptors = {
+  // TODO call descriptors
+};
+
 const NumDescriptors = {
-  id: {
-    enumerable: true,
-    get() {
-      return 'Number';
-    },
-  },
   '+': {
     enumerable: true,
     value: function Number_plus(b = null) {
@@ -589,21 +605,11 @@ const NumDescriptors = {
 };
 
 const StrDescriptors = {
-  id: {
-    enumerable: true,
-    get() {
-      return 'String';
-    },
-  },
+  // TODO string descriptors
 };
 
 const BoolDescriptors = {
-  id: {
-    enumerable: true,
-    get() {
-      return 'Boolean';
-    },
-  },
+  // TODO use Receiver.evalArgAndReturnSelf instead?
   ifTrue: {
     enumerable: true,
     value: asMethod(function Boolean_ifTrue() {
@@ -683,13 +689,59 @@ const MessageDescriptors = {
 // Utils
 //
 
+function createReceiver(prefix, proto, descriptors) {
+  const Obj = Object.create(
+    Array.isArray(proto) ? createProtos(...proto) : proto,
+    {
+      id: idDescriptor(prefix),
+      [Symbol.hasInstance]: {
+        value: (inst) => hasProto(Obj, inst),
+      },
+      ...(descriptors || {}),
+    },
+  );
+  return Obj;
+}
+
+/**
+ * Creates a `Proxy` that can be used as prototype in `Object.create`
+ * and will act as if the object has multiple prototypes.
+ */
+function createProtos(proto, ...protos) {
+  if (protos.length === 0) {
+    return proto;
+  }
+  const allProtos = [proto, ...protos];
+  const protosCount = protos.length;
+  return new Proxy(proto, {
+    get(target, prop) {
+      if (prop === ProtosSymbol) {
+        return allProtos;
+      }
+      if (prop in target) {
+        return target[prop];
+      }
+      for (let i = 0; i < protosCount; i++) {
+        if (prop in protos[i]) {
+          return protos[i][prop];
+        }
+        return undefined;
+      }
+    },
+  });
+}
+
 function hasProto(proto, inst) {
-  let p = inst?.proto;
-  while (p) {
-    if (p === proto) {
+  let ps = inst?.protos;
+  if (ps?.length) {
+    if (ps.includes(proto)) {
       return true;
     }
-    p = p.proto;
+    for (let i = 0; i < ps.length; i++) {
+      if (hasProto(proto, ps[i])) {
+        return true;
+      }
+    }
   }
   return false;
 }
