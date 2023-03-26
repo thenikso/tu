@@ -571,6 +571,7 @@ const ReceiverDescriptors = {
       return this === other;
     },
   },
+  // TODO `then` is evalArgAndReturnNil
   if: {
     enumerable: true,
     value: asMethod('condition', function Receiver_if(condition) {
@@ -582,8 +583,35 @@ const ReceiverDescriptors = {
       return otherwise ? otherwise.doInContext(this.call.sender) : false;
     }),
   },
-  // TODO `then` is evalArgAndReturnNil
-  then: {},
+  for: {
+    enumerable: true,
+    value: asMethod(function Receiver_for() {
+      if (arguments.length !== 4) {
+        throw new Error(`method 'for' expects 4 arguments`);
+      }
+      const iName =
+        typeof arguments[0].name === 'symbol' &&
+        Symbol.keyFor(arguments[0].name);
+      if (!iName) {
+        throw new Error(`argument 0 to method 'for' must be a symbol`);
+      }
+      const start = arguments[1].doInContext(this.call.sender);
+      if (typeof start !== 'number') {
+        throw new Error(`argument 1 to method 'for' must be a Number`);
+      }
+      const end = arguments[2].doInContext(this.call.sender);
+      if (typeof end !== 'number') {
+        throw new Error(`argument 2 to method 'for' must be a Number`);
+      }
+      const body = arguments[3];
+      const locals = Object.create(this);
+      for (let i = start; i <= end; i++) {
+        locals[iName] = i;
+        body.doInContext(locals);
+      }
+      return end;
+    }),
+  },
 };
 
 const CallDescriptors = {
@@ -742,7 +770,7 @@ const ListDescriptors = {
       const copy = this.clone();
       copy.sortInPlace.apply(copy, arguments);
       return copy;
-    }
+    },
   },
   first: {
     enumerable: true,
@@ -793,7 +821,7 @@ const ListDescriptors = {
     enumerable: true,
     value: asMethod(function List_select() {
       const resultList = this.clone();
-      listWithIndexItemBody(this.call, arguments, (cb) => {
+      withIndexItemBody(this.call, arguments, (cb) => {
         resultList.jsArray = this.jsArray.filter(cb);
       });
       return resultList;
@@ -806,7 +834,7 @@ const ListDescriptors = {
     enumerable: true,
     value: asMethod(function List_detect() {
       return (
-        listWithIndexItemBody(this.call, arguments, (cb) => {
+        withIndexItemBody(this.call, arguments, (cb) => {
           for (let i = 0, l = this.jsArray.length; i < l; i++) {
             const item = this.jsArray[i];
             const result = cb(item);
@@ -821,7 +849,7 @@ const ListDescriptors = {
   mapInPlace: {
     enumerable: true,
     value: asMethod(function List_map() {
-      listWithIndexItemBody(this.call, arguments, (cb) => {
+      withIndexItemBody(this.call, arguments, (cb) => {
         this.jsArray = this.jsArray.map(cb);
       });
       return this;
@@ -836,60 +864,6 @@ const ListDescriptors = {
     }),
   },
 };
-
-/**
- * List utility function for methods that take a block with an optional index
- * and item argument. For example:
- *     list(1, 2, 3) map(<2)                // only body
- *     list(1, 2, 3) map(x, x<2)            // item and body
- *     list(1, 2, 3) map(i, x, x<2 && i>0)  // index, item, and body
- * @param {Call} call
- * @param {Message[]} args
- * @param {(cb: (item: any) => any) => any} fn
- */
-function listWithIndexItemBody(call, args, fn) {
-  const argCount = args.length;
-  let body;
-  if (argCount === 0) {
-    throw new Error(`missing argument`);
-  }
-  if (argCount === 1) {
-    body = args[0];
-    return fn((item) => body.doInContext(item));
-  } else if (argCount === 2) {
-    const eName =
-      typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
-    if (!eName) {
-      throw new Error(`argument 0 must be a Symbol`);
-    }
-    body = args[1];
-    const context = call.sender.clone();
-    return fn((item) => {
-      context.setSlot(eName, item);
-      return body.doInContext(context);
-    });
-  } else if (argCount === 3) {
-    const iName =
-      typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
-    if (!eName) {
-      throw new Error(`argument 0 must be a Symbol`);
-    }
-    const eName =
-      typeof args[1].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
-    if (!eName) {
-      throw new Error(`argument 1 must be a Symbol`);
-    }
-    body = args[2];
-    const context = call.sender.clone();
-    return fn((item, index) => {
-      context.setSlot(iName, index);
-      context.setSlot(eName, item);
-      return body.doInContext(context);
-    });
-  } else {
-    throw new Error(`too many arguments`);
-  }
-}
 
 const MessageDescriptors = {
   last: {
@@ -975,6 +949,60 @@ function idDescriptor(prefix) {
       return id;
     },
   };
+}
+
+/**
+ * Utility function for methods that take a block with an optional index
+ * and item argument. For example `map`:
+ *     list(1, 2, 3) map(<2)                // only body
+ *     list(1, 2, 3) map(x, x<2)            // item and body
+ *     list(1, 2, 3) map(i, x, x<2 && i>0)  // index, item, and body
+ * @param {Call} call
+ * @param {Message[]} args
+ * @param {(cb: (item: any) => any) => any} fn
+ */
+function withIndexItemBody(call, args, fn) {
+  const argCount = args.length;
+  let body;
+  if (argCount === 0) {
+    throw new Error(`missing argument`);
+  }
+  if (argCount === 1) {
+    body = args[0];
+    return fn((item) => body.doInContext(item));
+  } else if (argCount === 2) {
+    const eName =
+      typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+    if (!eName) {
+      throw new Error(`argument 0 must be a Symbol`);
+    }
+    body = args[1];
+    const context = call.sender.clone();
+    return fn((item) => {
+      context.setSlot(eName, item);
+      return body.doInContext(context);
+    });
+  } else if (argCount === 3) {
+    const iName =
+      typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+    if (!eName) {
+      throw new Error(`argument 0 must be a Symbol`);
+    }
+    const eName =
+      typeof args[1].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+    if (!eName) {
+      throw new Error(`argument 1 must be a Symbol`);
+    }
+    body = args[2];
+    const context = call.sender.clone();
+    return fn((item, index) => {
+      context.setSlot(iName, index);
+      context.setSlot(eName, item);
+      return body.doInContext(context);
+    });
+  } else {
+    throw new Error(`too many arguments`);
+  }
 }
 
 //

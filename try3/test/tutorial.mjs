@@ -43,7 +43,10 @@ describe('Tutorial: ', async (assert) => {
 });
 
 describe('Tutorial: List', async (assert) => {
-  const { withEnv, assertReturn, assertLogs } = createUtils(environment, assert);
+  const { withEnv, assertReturn, assertLogs } = createUtils(
+    environment,
+    assert,
+  );
 
   withEnv(() => {
     assertReturn(
@@ -66,8 +69,17 @@ describe('Tutorial: List', async (assert) => {
   assertReturn('list(30, 10, 5, 20) map(v, v*2) jsArray', [60, 20, 10, 40]);
 });
 
+describe('Tutorial: Loops', async (assert) => {
+  const { withEnv, assertReturn, assertLogs } = createUtils(
+    environment,
+    assert,
+  );
+
+  assertLogs('for(i, 1, 10, writeln(i))', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+});
+
 // describe('Tutorial: ', async (assert) => {
-//   const { assertReturn } = createUtils(environment, assert);
+//   const { withEnv, assertReturn, assertLogs } = createUtils(environment, assert);
 
 //   assertReturn('', );
 // });
