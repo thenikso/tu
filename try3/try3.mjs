@@ -485,15 +485,6 @@ const ReceiverDescriptors = {
       return 'Receiver';
     },
   },
-  protos: {
-    enumerable: true,
-    get() {
-      const proto = Object.getPrototypeOf(this);
-      if (!proto) return [];
-      const protos = proto[ProtosSymbol];
-      return protos ?? [proto];
-    },
-  },
   proto: {
     enumerable: true,
     get() {
@@ -699,58 +690,23 @@ const MessageDescriptors = {
 //
 
 function createReceiver(prefix, proto, descriptors) {
-  const Obj = Object.create(
-    Array.isArray(proto) ? createProtos(...proto) : proto,
-    {
-      id: idDescriptor(prefix),
-      [Symbol.hasInstance]: {
-        value: (inst) => hasProto(Obj, inst),
-      },
-      ...(descriptors || {}),
+  const Obj = Object.create(proto, {
+    id: idDescriptor(prefix),
+    [Symbol.hasInstance]: {
+      value: (inst) => hasProto(Obj, inst),
     },
-  );
+    ...(descriptors || {}),
+  });
   return Obj;
 }
 
-/**
- * Creates a `Proxy` that can be used as prototype in `Object.create`
- * and will act as if the object has multiple prototypes.
- */
-function createProtos(proto, ...protos) {
-  if (protos.length === 0) {
-    return proto;
-  }
-  const allProtos = [proto, ...protos];
-  const protosCount = protos.length;
-  return new Proxy(proto, {
-    get(target, prop) {
-      if (prop === ProtosSymbol) {
-        return allProtos;
-      }
-      if (prop in target) {
-        return target[prop];
-      }
-      for (let i = 0; i < protosCount; i++) {
-        if (prop in protos[i]) {
-          return protos[i][prop];
-        }
-        return undefined;
-      }
-    },
-  });
-}
-
 function hasProto(proto, inst) {
-  let ps = inst?.protos;
-  if (ps?.length) {
-    if (ps.includes(proto)) {
+  let p = inst?.proto;
+  while (p) {
+    if (p === proto) {
       return true;
     }
-    for (let i = 0; i < ps.length; i++) {
-      if (hasProto(proto, ps[i])) {
-        return true;
-      }
-    }
+    p = p.proto;
   }
   return false;
 }
