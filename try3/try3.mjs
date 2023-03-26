@@ -91,14 +91,15 @@ export function environment(options) {
     },
     writeln: {
       enumerable: true,
-      value: asMethod('msg', function (msg) {
+      value: function (...msgs) {
+        const msg = msgs.map((m) => m?.asString?.() ?? String(m)).join('');
         if (options?.log) {
           options?.log(msg);
         } else {
           console.log(msg);
         }
         return this;
-      }),
+      },
     },
     list: {
       enumerable: true,
@@ -410,7 +411,7 @@ function makeMessage_doInContext(Call, Num, Str, Bool) {
             slot = target[slotName];
         }
       }
-      if (!slot) {
+      if (typeof slot === 'undefined') {
         throw new Error(
           `${target.id ?? typeof target} does not respond to '${
             typeof msg.name === 'symbol' ? Symbol.keyFor(msg.name) : msg.name
@@ -863,6 +864,17 @@ const ListDescriptors = {
       return copy;
     }),
   },
+  foreach: {
+    enumerable: true,
+    value: asMethod(function List_foreach() {
+      withIndexItemBody(this.call, arguments, (cb) => {
+        for(let i = 0, l = this.jsArray.length; i < l; i++) {
+          cb(this.jsArray[i], i);
+        }
+      });
+      return this;
+    }),
+  },
 };
 
 const MessageDescriptors = {
@@ -985,11 +997,11 @@ function withIndexItemBody(call, args, fn) {
   } else if (argCount === 3) {
     const iName =
       typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
-    if (!eName) {
+    if (!iName) {
       throw new Error(`argument 0 must be a Symbol`);
     }
     const eName =
-      typeof args[1].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+      typeof args[1].name === 'symbol' ? Symbol.keyFor(args[1].name) : null;
     if (!eName) {
       throw new Error(`argument 1 must be a Symbol`);
     }

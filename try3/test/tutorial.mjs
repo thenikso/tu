@@ -75,7 +75,26 @@ describe('Tutorial: Loops', async (assert) => {
     assert,
   );
 
-  assertLogs('for(i, 1, 10, writeln(i))', 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+  assertLogs(
+    'for(i, 1, 10, writeln(i))',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '10',
+  );
+  assertLogs(
+    'list(5, 123, 20) foreach(i, v, writeln(i, ": ", v))',
+    '0: 5',
+    '1: 123',
+    '2: 20',
+  );
+  assertLogs('list("abc", "def", "ghi") foreach(println)', 'abc', 'def', 'ghi');
 });
 
 // describe('Tutorial: ', async (assert) => {
