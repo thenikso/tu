@@ -183,6 +183,11 @@ export function environment(options) {
   const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
   const List = createReceiver('List', Receiver, {
     ...ListDescriptors,
+    jsArray: {
+      enumerable: true,
+      writable: true,
+      value: null,
+    },
     init: {
       enumerable: true,
       value: function List_init() {
@@ -190,6 +195,25 @@ export function environment(options) {
           this.jsArray = this.proto.jsArray.slice();
         } else {
           this.jsArray = [];
+        }
+        return this;
+      },
+    },
+  });
+  const MapReceiver = createReceiver('Map', Receiver, {
+    ...MapDescriptors,
+    jsMap: {
+      enumerable: true,
+      writable: true,
+      value: null,
+    },
+    init: {
+      enumerable: true,
+      value: function Map_init() {
+        if (this.proto instanceof MapReceiver) {
+          this.jsMap = new Map(this.proto.jsMap);
+        } else {
+          this.jsMap = new Map();
         }
         return this;
       },
@@ -221,6 +245,10 @@ export function environment(options) {
       enumerable: true,
       value: List,
     },
+    Map: {
+      enumerable: true,
+      value: MapReceiver,
+    },
   });
 
   const Lobby = createReceiver('Lobby', Core);
@@ -229,7 +257,7 @@ export function environment(options) {
     ...MessageDescriptors,
     doInContext: {
       enumerable: true,
-      value: makeMessage_doInContext(Call, Num, Str, Bool),
+      value: makeMessage_doInContext(Call, Num, Str, Bool, List),
     },
   });
 
@@ -351,7 +379,7 @@ export function environment(options) {
  * It's done this way because we need instances of Receivers for the
  * specific environment.
  */
-function makeMessage_doInContext(Call, Num, Str, Bool) {
+function makeMessage_doInContext(Call, Num, Str, Bool, List) {
   /**
    * @param {Receiver} context
    * @param {Receiver=} locals
@@ -474,6 +502,10 @@ function makeMessage_doInContext(Call, Num, Str, Bool) {
           // then we need to return `target` instead
           if (cursor === locals) {
             cursor = target;
+          }
+          // Convert arrays to `List`s
+          if (Array.isArray(cursor)) {
+            cursor = List.clone().append(...cursor);
           }
         } else {
           // for normal funciton resolve all args and send
@@ -705,7 +737,17 @@ const NumDescriptors = {
 };
 
 const StrDescriptors = {
-  // TODO string descriptors
+  '..': {
+    enumerable: true,
+    value: function String_concat(b) {
+      if (typeof b !== 'string') {
+        throw new Error(
+          `argument 0 to method '..' must be a String. Got ${b}.`,
+        );
+      }
+      return this + b;
+    },
+  },
 };
 
 const BoolDescriptors = {
@@ -739,6 +781,12 @@ const BoolDescriptors = {
 };
 
 const ListDescriptors = {
+  jsArray: {
+    enumerable: true,
+    get() {
+      return [];
+    },
+  },
   append: {
     enumerable: true,
     value: function List_append(...items) {
@@ -868,8 +916,65 @@ const ListDescriptors = {
     enumerable: true,
     value: asMethod(function List_foreach() {
       withIndexItemBody(this.call, arguments, (cb) => {
-        for(let i = 0, l = this.jsArray.length; i < l; i++) {
+        for (let i = 0, l = this.jsArray.length; i < l; i++) {
           cb(this.jsArray[i], i);
+        }
+      });
+      return this;
+    }),
+  },
+};
+
+const MapDescriptors = {
+  jsMap: {
+    enumerable: true,
+    get() {
+      return new Map();
+    },
+  },
+  atPut: {
+    enumerable: true,
+    value: function Map_atPut(key, value) {
+      this.jsMap.set(key, value);
+      return this;
+    },
+  },
+  hasKey: {
+    enumerable: true,
+    value: function Map_hasKey(key) {
+      return this.jsMap.has(key);
+    },
+  },
+  hasValue: {
+    enumerable: true,
+    value: function Map_hasValue(value) {
+      for (const v of this.jsMap.values()) {
+        if (v === value) {
+          return true;
+        }
+      }
+      return false;
+    },
+  },
+  at: {
+    enumerable: true,
+    value: function Map_at(key) {
+      return this.jsMap.get(key) ?? null;
+    },
+  },
+  keys: {
+    enumerable: true,
+    // As method so that return array will be converted to a List.
+    value: asMethod(function Map_keys() {
+      return [...this.jsMap.keys()];
+    }),
+  },
+  foreach: {
+    enumerable: true,
+    value: asMethod(function Map_foreach() {
+      withIndexItemBody(this.call, arguments, (cb) => {
+        for (const [key, value] of this.jsMap.entries()) {
+          cb(value, key);
         }
       });
       return this;

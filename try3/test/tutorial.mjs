@@ -97,6 +97,32 @@ describe('Tutorial: Loops', async (assert) => {
   assertLogs('list("abc", "def", "ghi") foreach(println)', 'abc', 'def', 'ghi');
 });
 
+describe('Tutorial: Dictionaries', async (assert) => {
+  const { withEnv, assertReturn, assertLogs } = createUtils(
+    environment,
+    assert,
+  );
+
+  withEnv(() => {
+    assertReturn(
+      `
+      dict := Map clone;
+      dict atPut("hello", "a greeting");
+      dict atPut("goodbye", "a parting");
+      dict hasKey("hello")`,
+      true,
+    );
+    assertReturn('dict hasValue("a greeting")', true);
+    assertReturn('dict at("hello")', 'a greeting');
+    assertReturn('dict keys jsArray', ['hello', 'goodbye']);
+    assertLogs(
+      'dict foreach(k, v, (k..": "..v) println)',
+      'hello: a greeting',
+      'goodbye: a parting',
+    );
+  });
+});
+
 // describe('Tutorial: ', async (assert) => {
 //   const { withEnv, assertReturn, assertLogs } = createUtils(environment, assert);
 
