@@ -42,7 +42,11 @@ import ohm from '../vendor/ohm.mjs';
  */
 
 /**
- * @alias {string[]} MethodInfo
+ * @alias {string[]} MethodArgs
+ */
+
+/**
+ * @alias {boolean} MethodRaw
  */
 
 //
@@ -57,7 +61,17 @@ const MessageTerminatorSymbol = Symbol('Terminator');
  * A method function should have as many arguments as it intends to evaluate
  * before it's called. Other arguments will be passed as `Message`s.
  */
-const MethodInfoSymbol = Symbol('Method');
+const MethodArgsSymbol = Symbol('Method');
+
+/**
+ * If assigned to a `function` it indicates that it is a "raw" `method` rather
+ * than a plain javascript function.
+ * A raw method function will receive all arguments as un-evaluated
+ * {@link Message}s in a single array argument.
+ * The first argument will instead be the sender {@link Receiver}.
+ * `this` will still be the target (which may be a {@link Receiver} or a literal).
+ */
+const MethodRawSymbol = Symbol('RawMethod');
 
 export function environment(options) {
   // TODO figure out options
@@ -287,7 +301,22 @@ function asMethod(...args) {
     throw new Error(`Cannot use 'call' as an argument name`);
   }
   const fn = args[args.length - 1];
-  fn[MethodInfoSymbol] = argNames;
+  fn[MethodArgsSymbol] = argNames;
+  return fn;
+}
+
+/**
+ * A raw method will not have it's arguments pre-evaluated, meaning that
+ * it will receive {@link Message} objects instead of their values.
+ * Also the provided function will receive the target as `this`, the sender
+ * as the first argument, and the arguments as the second argument.
+ * @param {(sender: Receiver, args: Message[]) => any} fn
+ */
+function asRawMethod(fn) {
+  if (fn.length !== 2) {
+    throw new Error(`Raw methods must have exactly 2 arguments`);
+  }
+  fn[MethodRawSymbol] = true;
   return fn;
 }
 
@@ -334,6 +363,9 @@ const ReceiverDescriptors = {
       });
       return method;
     }),
+  },
+  evalArgAndReturnSelf: {
+    enumerable: true,
   },
   '': {
     enumerable: false,
@@ -418,26 +450,24 @@ const Bool = Object.create(null, {
   },
   ifTrue: {
     enumerable: true,
-    value: asMethod(function Boolean_ifTrue() {
-      const trueBlock = arguments[0];
+    value: asRawMethod(function Boolean_ifTrue(sender, [trueBlock]) {
       if (typeof trueBlock === 'undefined') {
         throw new Error(`argument 0 to method 'ifTrue' is required`);
       }
-      if (this.self === true) {
-        trueBlock.doInContext(this);
+      if (this === true) {
+        trueBlock.doInContext(sender);
       }
       return this;
     }),
   },
   ifFalse: {
     enumerable: true,
-    value: asMethod(function Boolean_ifFalse() {
-      const falseBlock = arguments[0];
+    value: asRawMethod(function Boolean_ifFalse(sender, [falseBlock]) {
       if (typeof falseBlock === 'undefined') {
         throw new Error(`argument 0 to method 'ifFalse' is required`);
       }
-      if (this.self === false) {
-        falseBlock.doInContext(this);
+      if (this === false) {
+        falseBlock.doInContext(sender);
       }
       return this;
     }),
@@ -471,8 +501,10 @@ const MessageDescriptors = {
       let slotName;
       let slot;
       let i, l;
-      /** @type {MethodInfo} */
-      let methodInfo;
+      /** @type {MethodRaw} */
+      let methodRaw;
+      /** @type {MethodArgs} */
+      let methodArgs;
       do {
         if (msg.name === MessageTerminatorSymbol) {
           cursor = null;
@@ -524,49 +556,44 @@ const MessageDescriptors = {
         cursor = slot;
 
         if (typeof cursor === 'function') {
-          methodInfo = cursor[MethodInfoSymbol];
-          if (methodInfo) {
+          methodArgs = cursor[MethodArgsSymbol];
+          if (methodArgs) {
             // generate `locals` with `target` as proto
-            const locals = Object.create(
-              // TODO this happens if traget is number etc. is it ok?
-              typeof target === 'object' ? target : sender,
-              {
-                self: {
+            const locals = Object.create(target, {
+              self: {
+                enumerable: true,
+                value: target,
+              },
+              call: Object.create(rootReceiver, {
+                // current object for the method (aka `this` in js or `self`)
+                target: {
                   enumerable: true,
                   value: target,
                 },
-                // TODO only create if needed in method
-                call: Object.create(rootReceiver, {
-                  // current object for the method (aka `this` in js or `self`)
-                  target: {
-                    enumerable: true,
-                    value: target,
-                  },
-                  // the method being called
-                  activated: {
-                    enumerable: true,
-                    value: cursor,
-                  },
-                  // message used to call the method
-                  message: {
-                    enumerable: true,
-                    value: msg,
-                  },
-                  // locals object of caller
-                  // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
-                  sender: {
-                    enumerable: true,
-                    value: sender,
-                  },
-                  // missing `slotContext` which should be the proto object that
-                  // defines the slot/method being called
-                }),
-              },
-            );
+                // the method being called
+                activated: {
+                  enumerable: true,
+                  value: cursor,
+                },
+                // message used to call the method
+                message: {
+                  enumerable: true,
+                  value: msg,
+                },
+                // locals object of caller
+                // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
+                sender: {
+                  enumerable: true,
+                  value: sender,
+                },
+                // missing `slotContext` which should be the proto object that
+                // defines the slot/method being called
+              }),
+            });
             // Eval args requested by method
             const localArgs = [];
-            for (i = 0, l = methodInfo.length; i < l; i++) {
-              locals[methodInfo[i]] = localArgs[i] =
+            for (i = 0, l = methodArgs.length; i < l; i++) {
+              locals[methodArgs[i]] = localArgs[i] =
                 msg.arguments[i]?.doInContext(sender) ?? null;
             }
             // other arguments will be sent as `Message`s in `arguments`
@@ -581,11 +608,17 @@ const MessageDescriptors = {
               cursor = target;
             }
           } else {
-            // for normal funciton resolve all args and send
-            cursor = cursor.apply(
-              target,
-              msg.arguments.map((arg) => arg.doInContext(sender)),
-            );
+            methodRaw = cursor[MethodRawSymbol];
+            if (methodRaw) {
+              // raw method function will not pre-eval args
+              cursor = cursor.call(target, sender, msg.arguments);
+            } else {
+              // for normal funciton resolve all args and send
+              cursor = cursor.apply(
+                target,
+                msg.arguments.map((arg) => arg.doInContext(sender)),
+              );
+            }
           }
         }
 
