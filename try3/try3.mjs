@@ -45,10 +45,6 @@ import ohm from '../vendor/ohm.mjs';
  * @alias {string[]} MethodArgs
  */
 
-/**
- * @alias {boolean} MethodRaw
- */
-
 //
 // Environment
 //
@@ -62,16 +58,6 @@ const MessageTerminatorSymbol = Symbol('Terminator');
  * before it's called. Other arguments will be passed as `Message`s.
  */
 const MethodArgsSymbol = Symbol('Method');
-
-/**
- * If assigned to a `function` it indicates that it is a "raw" `method` rather
- * than a plain javascript function.
- * A raw method function will receive all arguments as un-evaluated
- * {@link Message}s in a single array argument.
- * The first argument will instead be the sender {@link Receiver}.
- * `this` will still be the target (which may be a {@link Receiver} or a literal).
- */
-const MethodRawSymbol = Symbol('RawMethod');
 
 export function environment(options) {
   // TODO figure out options
@@ -92,12 +78,39 @@ export function environment(options) {
         return this;
       },
     },
+    writeln: {
+      enumerable: true,
+      value: asMethod('msg', function (msg) {
+        if (options?.log) {
+          options?.log(msg);
+        } else {
+          console.log(msg);
+        }
+        return this;
+      }),
+    },
+  });
+
+  const Num = Object.create(Receiver, {
+    ...NumDescriptors,
+  });
+
+  const Str = Object.create(Receiver, {
+    ...StrDescriptors,
+  });
+
+  const Bool = Object.create(Receiver, {
+    ...BoolDescriptors,
   });
 
   const Message = Object.create(Receiver, {
     ...MessageDescriptors,
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Message, inst),
+    },
+    doInContext: {
+      enumerable: true,
+      value: makeMessage_doInContext(Receiver, Num, Str, Bool),
     },
   });
 
@@ -293,6 +306,153 @@ export function environment(options) {
   return env;
 }
 
+/**
+ * Creates a function to be assigned as `doInContext` on a Message.
+ * It's done this way because we need instances of Receivers for the
+ * specific environment.
+ * TODO accept the Lobby instead and find Core Receivers from it
+ */
+function makeMessage_doInContext(rootReceiver, Num, Str, Bool) {
+  /**
+   * @param {Receiver} context
+   * @param {Receiver=} locals
+   */
+  return function Message_doInContext(context, locals) {
+    /** @type {Message} */
+    let msg = this;
+    let cursor = null;
+    let target = context;
+    let localsTarget;
+    let sender = locals ?? context;
+    let slotName;
+    let slot;
+    let i, l;
+    /** @type {MethodArgs} */
+    let methodArgs;
+    do {
+      if (msg.name === MessageTerminatorSymbol) {
+        cursor = null;
+        target = context;
+        sender = locals ?? context;
+        msg = msg.next;
+        continue;
+      }
+
+      if (
+        typeof msg.name === 'string' ||
+        typeof msg.name === 'number' ||
+        typeof msg.name === 'boolean'
+      ) {
+        cursor = msg.name;
+        target = cursor;
+        msg = msg.next;
+        continue;
+      }
+
+      slot = null;
+      localsTarget = target;
+      if (
+        typeof msg.name === 'symbol' &&
+        (slotName = Symbol.keyFor(msg.name))
+      ) {
+        switch (typeof target) {
+          case 'number':
+            slot = Num[slotName];
+            localsTarget = Num;
+            break;
+          case 'string':
+            slot = Str[slotName];
+            localsTarget = Str;
+            break;
+          case 'boolean':
+            slot = Bool[slotName];
+            localsTarget = Bool;
+            break;
+          default:
+            slot = target[slotName];
+        }
+      }
+      if (!slot) {
+        throw new Error(
+          `${target.id ?? typeof target} does not respond to '${
+            typeof msg.name === 'symbol' ? Symbol.keyFor(msg.name) : msg.name
+          }'`,
+        );
+      }
+
+      cursor = slot;
+
+      if (typeof cursor === 'function') {
+        methodArgs = cursor[MethodArgsSymbol];
+        if (methodArgs) {
+          const locals = Object.create(localsTarget, {
+            self: {
+              enumerable: true,
+              value: target,
+            },
+            call: {
+              enumerable: true,
+              value: Object.create(rootReceiver, {
+                // current object for the method (aka `this` in js or `self`)
+                target: {
+                  enumerable: true,
+                  value: target,
+                },
+                // the method being called
+                activated: {
+                  enumerable: true,
+                  value: cursor,
+                },
+                // message used to call the method
+                message: {
+                  enumerable: true,
+                  value: msg,
+                },
+                // locals object of caller
+                // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
+                sender: {
+                  enumerable: true,
+                  value: sender,
+                },
+                // missing `slotContext` which should be the proto object that
+                // defines the slot/method being called
+              }),
+            },
+          });
+          // Eval args requested by method
+          const localArgs = [];
+          for (i = 0, l = methodArgs.length; i < l; i++) {
+            locals[methodArgs[i]] = localArgs[i] =
+              msg.arguments[i]?.doInContext(sender) ?? null;
+          }
+          // other arguments will be sent as `Message`s in `arguments`
+          for (l = msg.arguments.length; i < l; i++) {
+            localArgs[i] = msg.arguments[i];
+          }
+          // Apply method
+          cursor = cursor.apply(locals, localArgs);
+          // Methods may return `this` so if `cursor` is `locals`
+          // then we need to return `target` instead
+          if (cursor === locals) {
+            cursor = target;
+          }
+        } else {
+          // for normal funciton resolve all args and send
+          cursor = cursor.apply(
+            target,
+            msg.arguments.map((arg) => arg.doInContext(sender)),
+          );
+        }
+      }
+
+      target = cursor;
+      msg = msg.next;
+    } while (msg);
+
+    return cursor;
+  };
+}
+
 function asMethod(...args) {
   const argNames = args.slice(0, -1);
   if (argNames.includes('self')) {
@@ -302,21 +462,6 @@ function asMethod(...args) {
   }
   const fn = args[args.length - 1];
   fn[MethodArgsSymbol] = argNames;
-  return fn;
-}
-
-/**
- * A raw method will not have it's arguments pre-evaluated, meaning that
- * it will receive {@link Message} objects instead of their values.
- * Also the provided function will receive the target as `this`, the sender
- * as the first argument, and the arguments as the second argument.
- * @param {(sender: Receiver, args: Message[]) => any} fn
- */
-function asRawMethod(fn) {
-  if (fn.length !== 2) {
-    throw new Error(`Raw methods must have exactly 2 arguments`);
-  }
-  fn[MethodRawSymbol] = true;
   return fn;
 }
 
@@ -379,9 +524,20 @@ const ReceiverDescriptors = {
       return this === other;
     },
   },
+  if: {
+    enumerable: true,
+    value: asMethod('condition', function Receiver_if(condition) {
+      if (condition) {
+        const then = arguments[1];
+        return then ? then.doInContext(this.call.sender) : null;
+      }
+      const otherwise = arguments[2];
+      return otherwise ? otherwise.doInContext(this.call.sender) : null;
+    }),
+  },
 };
 
-const Num = Object.create(null, {
+const NumDescriptors = {
   id: {
     enumerable: true,
     get() {
@@ -430,18 +586,18 @@ const Num = Object.create(null, {
       return Math.sqrt(this);
     },
   },
-});
+};
 
-const Str = Object.create(null, {
+const StrDescriptors = {
   id: {
     enumerable: true,
     get() {
       return 'String';
     },
   },
-});
+};
 
-const Bool = Object.create(null, {
+const BoolDescriptors = {
   id: {
     enumerable: true,
     get() {
@@ -450,29 +606,31 @@ const Bool = Object.create(null, {
   },
   ifTrue: {
     enumerable: true,
-    value: asRawMethod(function Boolean_ifTrue(sender, [trueBlock]) {
+    value: asMethod(function Boolean_ifTrue() {
+      const trueBlock = arguments[0];
       if (typeof trueBlock === 'undefined') {
         throw new Error(`argument 0 to method 'ifTrue' is required`);
       }
-      if (this === true) {
-        trueBlock.doInContext(sender);
+      if (this.self === true) {
+        trueBlock.doInContext(this.call.sender);
       }
       return this;
     }),
   },
   ifFalse: {
     enumerable: true,
-    value: asRawMethod(function Boolean_ifFalse(sender, [falseBlock]) {
+    value: asMethod(function Boolean_ifFalse() {
+      const falseBlock = arguments[0];
       if (typeof falseBlock === 'undefined') {
         throw new Error(`argument 0 to method 'ifFalse' is required`);
       }
-      if (this === false) {
-        falseBlock.doInContext(sender);
+      if (this.self === false) {
+        falseBlock.doInContext(this.call.sender);
       }
       return this;
     }),
   },
-});
+};
 
 const MessageDescriptors = {
   last: {
@@ -483,150 +641,6 @@ const MessageDescriptors = {
         last = last.next;
       }
       return last;
-    },
-  },
-  doInContext: {
-    enumerable: true,
-    /**
-     * @param {Receiver} context
-     * @param {Receiver=} locals
-     */
-    value: function Message_doInContext(context, locals) {
-      const rootReceiver = this.proto;
-      /** @type {Message} */
-      let msg = this;
-      let cursor = null;
-      let target = context;
-      let sender = locals ?? context;
-      let slotName;
-      let slot;
-      let i, l;
-      /** @type {MethodRaw} */
-      let methodRaw;
-      /** @type {MethodArgs} */
-      let methodArgs;
-      do {
-        if (msg.name === MessageTerminatorSymbol) {
-          cursor = null;
-          target = context;
-          sender = locals ?? context;
-          msg = msg.next;
-          continue;
-        }
-
-        if (
-          typeof msg.name === 'string' ||
-          typeof msg.name === 'number' ||
-          typeof msg.name === 'boolean'
-        ) {
-          cursor = msg.name;
-          target = cursor;
-          msg = msg.next;
-          continue;
-        }
-
-        slot = null;
-        if (
-          typeof msg.name === 'symbol' &&
-          (slotName = Symbol.keyFor(msg.name))
-        ) {
-          switch (typeof target) {
-            case 'number':
-              // Simulate Num being a prototype of Receiver
-              slot = Num[slotName] ?? rootReceiver[slotName];
-              break;
-            case 'string':
-              slot = Str[slotName] ?? rootReceiver[slotName];
-              break;
-            case 'boolean':
-              slot = Bool[slotName] ?? rootReceiver[slotName];
-              break;
-            default:
-              slot = target[slotName];
-          }
-        }
-        if (!slot) {
-          throw new Error(
-            `${target.id ?? typeof target} does not respond to '${
-              typeof msg.name === 'symbol' ? Symbol.keyFor(msg.name) : msg.name
-            }'`,
-          );
-        }
-
-        cursor = slot;
-
-        if (typeof cursor === 'function') {
-          methodArgs = cursor[MethodArgsSymbol];
-          if (methodArgs) {
-            // generate `locals` with `target` as proto
-            const locals = Object.create(target, {
-              self: {
-                enumerable: true,
-                value: target,
-              },
-              call: Object.create(rootReceiver, {
-                // current object for the method (aka `this` in js or `self`)
-                target: {
-                  enumerable: true,
-                  value: target,
-                },
-                // the method being called
-                activated: {
-                  enumerable: true,
-                  value: cursor,
-                },
-                // message used to call the method
-                message: {
-                  enumerable: true,
-                  value: msg,
-                },
-                // locals object of caller
-                // TODO remove for [safety?](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function/caller)
-                sender: {
-                  enumerable: true,
-                  value: sender,
-                },
-                // missing `slotContext` which should be the proto object that
-                // defines the slot/method being called
-              }),
-            });
-            // Eval args requested by method
-            const localArgs = [];
-            for (i = 0, l = methodArgs.length; i < l; i++) {
-              locals[methodArgs[i]] = localArgs[i] =
-                msg.arguments[i]?.doInContext(sender) ?? null;
-            }
-            // other arguments will be sent as `Message`s in `arguments`
-            for (l = msg.arguments.length; i < l; i++) {
-              localArgs[i] = msg.arguments[i];
-            }
-            // Apply method
-            cursor = cursor.apply(locals, localArgs);
-            // Methods may return `this` so if `cursor` is `locals`
-            // then we need to return `target` instead
-            if (cursor === locals) {
-              cursor = target;
-            }
-          } else {
-            methodRaw = cursor[MethodRawSymbol];
-            if (methodRaw) {
-              // raw method function will not pre-eval args
-              cursor = cursor.call(target, sender, msg.arguments);
-            } else {
-              // for normal funciton resolve all args and send
-              cursor = cursor.apply(
-                target,
-                msg.arguments.map((arg) => arg.doInContext(sender)),
-              );
-            }
-          }
-        }
-
-        target = cursor;
-        msg = msg.next;
-      } while (msg);
-
-      return cursor;
     },
   },
   toString: {

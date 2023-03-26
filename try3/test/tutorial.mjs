@@ -35,6 +35,10 @@ describe('Tutorial: ', async (assert) => {
       (a == 1) ifTrue("a is one" println) ifFalse("a is not one" println)`,
       'a is not one',
     );
+    assertLogs(
+      'if(a == 1, writeln("a is one"), writeln("a is not one"))',
+      'a is not one',
+    );
   });
 });
 
