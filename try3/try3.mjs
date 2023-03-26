@@ -168,7 +168,20 @@ export function environment(options) {
   const Num = createReceiver('Number', Receiver, NumDescriptors);
   const Str = createReceiver('String', Receiver, StrDescriptors);
   const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
-  const List = createReceiver('List', Receiver, ListDescriptors);
+  const List = createReceiver('List', Receiver, {
+    ...ListDescriptors,
+    init: {
+      enumerable: true,
+      value: function List_init() {
+        if (this.proto instanceof List) {
+          this.jsArray = this.proto.jsArray.slice();
+        } else {
+          this.jsArray = [];
+        }
+        return this;
+      },
+    },
+  });
 
   const Core = createReceiver('Core', Receiver, {
     OperatorTable: {
@@ -494,6 +507,14 @@ const ReceiverDescriptors = {
       return protos ? protos[0] : proto;
     },
   },
+  clone: {
+    enumerable: true,
+    value: function Receiver_clone() {
+      const obj = Object.create(this);
+      obj.init?.();
+      return obj;
+    },
+  },
   setSlot: {
     enumerable: true,
     value: function Receiver_setSlot(slotNameString, slotValue) {
@@ -635,7 +656,13 @@ const BoolDescriptors = {
 };
 
 const ListDescriptors = {
-  // TODO list descriptors
+  append: {
+    enumerable: true,
+    value: function List_append(...items) {
+      this.jsArray.push(...items);
+      return this;
+    },
+  },
 };
 
 const MessageDescriptors = {
