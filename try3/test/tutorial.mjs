@@ -49,24 +49,21 @@ describe('Tutorial: List', async (assert) => {
   );
 
   withEnv(() => {
-    assertReturn(
-      'd := List clone append(30, 10, 5, 20); d jsArray',
-      [30, 10, 5, 20],
-    );
+    assertReturn('d := List clone append(30, 10, 5, 20)', [30, 10, 5, 20]);
     assertReturn('d size', 4);
     assertLogs('d print', 'list(30, 10, 5, 20)');
-    assertReturn('d := d sort; d jsArray', [5, 10, 20, 30]);
+    assertReturn('d := d sort', [5, 10, 20, 30]);
     assertReturn('d first', 5);
     assertReturn('d last', 30);
     assertReturn('d at(2)', 20);
-    assertReturn('d remove(30) jsArray', [5, 10, 20]);
-    assertReturn('d atPut(1, 123) jsArray', [5, 123, 20]);
+    assertReturn('d remove(30)', [5, 10, 20]);
+    assertReturn('d atPut(1, 123)', [5, 123, 20]);
   });
 
-  assertReturn('list(30, 10, 5, 20) select(>10) jsArray', [30, 20]);
+  assertReturn('list(30, 10, 5, 20) select(>10)', [30, 20]);
   assertReturn('list(30, 10, 5, 20) detect(>10)', 30);
-  assertReturn('list(30, 10, 5, 20) map(*2) jsArray', [60, 20, 10, 40]);
-  assertReturn('list(30, 10, 5, 20) map(v, v*2) jsArray', [60, 20, 10, 40]);
+  assertReturn('list(30, 10, 5, 20) map(*2)', [60, 20, 10, 40]);
+  assertReturn('list(30, 10, 5, 20) map(v, v*2)', [60, 20, 10, 40]);
 });
 
 describe('Tutorial: Loops', async (assert) => {
@@ -114,7 +111,7 @@ describe('Tutorial: Dictionaries', async (assert) => {
     );
     assertReturn('dict hasValue("a greeting")', true);
     assertReturn('dict at("hello")', 'a greeting');
-    assertReturn('dict keys jsArray', ['hello', 'goodbye']);
+    assertReturn('dict keys', ['hello', 'goodbye']);
     assertLogs(
       'dict foreach(k, v, (k..": "..v) println)',
       'hello: a greeting',
@@ -124,10 +121,7 @@ describe('Tutorial: Dictionaries', async (assert) => {
 });
 
 describe('Tutorial: Strings', async (assert) => {
-  const { withEnv, assertReturn, assertLogs } = createUtils(
-    environment,
-    assert,
-  );
+  const { withEnv, assertReturn } = createUtils(environment, assert);
 
   withEnv(() => {
     assertReturn('a := "foo"', 'foo');
@@ -139,7 +133,7 @@ describe('Tutorial: Strings', async (assert) => {
 
   withEnv(() => {
     assertReturn('s := "this is a test"', 'this is a test');
-    assertReturn('words := s split(" ", "\t"); words jsArray', [
+    assertReturn('words := s split(" ", "\t"); words', [
       'this',
       'is',
       'a',
@@ -150,6 +144,78 @@ describe('Tutorial: Strings', async (assert) => {
     assertReturn('s find("test")', 10);
     assertReturn('s slice(10)', 'test');
     assertReturn('s slice(2, 10)', 'is is a ');
+  });
+});
+
+describe('Tutorial: Objects', async (assert) => {
+  const { withEnv, assertReturn } = createUtils(environment, assert);
+
+  withEnv(() => {
+    assertReturn('Contact := Object clone', {});
+    assertReturn('Contact type', 'Contact');
+    assertReturn('Contact proto type', 'Object');
+    assertReturn('Contact name ::= nil', null);
+    assertReturn('Contact address ::= nil', null);
+    assertReturn('Contact city ::= nil', null);
+    assertReturn(
+      'holmes := Contact clone setName("Holmes") setAddress("221B Baker St") setCity("London")',
+      {
+        name: 'Holmes',
+        address: '221B Baker St',
+        city: 'London',
+      },
+    );
+    assertReturn('holmes slotNames', ['name', 'address', 'city']);
+    assertReturn(
+      `Contact fullAddress := method(list(name, address, city) join("\n"));
+      holmes fullAddress`,
+      'Holmes\n221B Baker St\nLondon',
+    );
+    assertReturn(
+      'holmes getSlot("fullAddress") asString',
+      String.raw`method(list(name, address, city) join("\n"))`,
+    );
+  });
+
+  withEnv(() => {
+    assertReturn(
+      `
+    Contact := Object clone do(
+      name ::= nil;
+      address ::= nil;
+      city ::= nil;
+      fullAddress := method(list(name, address, city) join("\n"));
+    ); Contact slotNames`,
+      [
+        'name',
+        'setName',
+        'address',
+        'setAddress',
+        'city',
+        'setCity',
+        'fullAddress',
+      ],
+    );
+
+    assertReturn(
+      `
+    BusinessContact := Contact clone do(
+      companyName ::= "";
+      fullAddress := method(
+        list(companyName, "Care of: " .. name, address, city) join("\n")
+      )
+    );
+
+    steve := BusinessContact clone do(
+      setName("Steve");
+      setCompanyName("Apple Inc.");
+      setAddress("1 Infinite Loop");
+      setCity("Cupertino");
+    );
+
+    steve fullAddress`,
+      'Apple Inc.\nCare of: Steve\n1 Infinite Loop\nCupertino',
+    );
   });
 });
 

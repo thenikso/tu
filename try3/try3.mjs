@@ -49,6 +49,15 @@ import ohm from '../vendor/ohm.mjs';
 // Environment
 //
 
+/**
+ * Symbol used in {@link Receiver} objects to identify the instance.
+ */
+const IdSymbol = Symbol('id');
+
+/**
+ * Symbol used as {@link Message.name} to indicate that the message is
+ * a terminator.
+ */
 const MessageTerminatorSymbol = Symbol('Terminator');
 
 /**
@@ -221,6 +230,10 @@ export function environment(options) {
   });
 
   const Core = createReceiver('Core', Receiver, {
+    Object: {
+      enumerable: true,
+      value: Receiver,
+    },
     OperatorTable: {
       enumerable: true,
       value: OperatorTable,
@@ -356,7 +369,10 @@ export function environment(options) {
     },
     eval: (code) => {
       const msg = env.parse(code);
-      const result = msg.doInContext(env.Lobby);
+      let result = msg.doInContext(env.Lobby);
+      if (result instanceof List) {
+        result = result.jsArray;
+      }
       return result;
     },
     tu: (strings, ...values) => {
@@ -534,15 +550,20 @@ function asMethod(...args) {
     throw new Error(`Cannot use 'call' as an argument name`);
   }
   const fn = args[args.length - 1];
-  fn[MethodArgsSymbol] = argNames;
+  Object.defineProperty(fn, MethodArgsSymbol, {
+    enumerable: false,
+    get() {
+      return argNames;
+    },
+  });
   return fn;
 }
 
 const ReceiverDescriptors = {
-  id: {
-    enumerable: true,
+  [IdSymbol]: {
+    enumerable: false,
     get() {
-      return 'Receiver';
+      return 'Object';
     },
   },
   proto: {
@@ -554,10 +575,18 @@ const ReceiverDescriptors = {
       return protos ? protos[0] : proto;
     },
   },
+  type: {
+    enumerable: true,
+    get() {
+      return this[IdSymbol].split('_')[0];
+    },
+  },
   clone: {
     enumerable: true,
     value: function Receiver_clone() {
-      const obj = Object.create(this);
+      const obj = Object.create(this, {
+        [IdSymbol]: idDescriptor(this.type, true),
+      });
       obj.init?.();
       return obj;
     },
@@ -566,7 +595,62 @@ const ReceiverDescriptors = {
     enumerable: true,
     value: function Receiver_setSlot(slotNameString, slotValue) {
       this[slotNameString] = slotValue ?? null;
+      // If the slotValue has a configurable `id`, it means it's just been
+      // cloned and we can change it's `id`/`type` to match the slot name
+      // if it starts with a capital letter
+      if (
+        slotValue &&
+        slotNameString[0] === slotNameString[0].toUpperCase() &&
+        typeof slotValue === 'object' &&
+        Object.getOwnPropertyDescriptor(slotValue, IdSymbol)?.configurable
+      ) {
+        Object.defineProperty(
+          slotValue,
+          IdSymbol,
+          idDescriptor(slotNameString),
+        );
+      }
       return slotValue;
+    },
+  },
+  updateSlot: {
+    enumerable: true,
+    value: function Receiver_updateSlot(slotNameString, slotValue) {
+      this[slotNameString] = slotValue ?? null;
+      return slotValue;
+    },
+  },
+  /**
+   * Like `setSlot` but also create a setter method for the slot.
+   * The setter method will be named `set` + slotNameString capitalized.
+   */
+  newSlot: {
+    enumerable: true,
+    value: function Receiver_newSlot(slotNameString, slotValue) {
+      this.setSlot(slotNameString, slotValue);
+      const setterName = `set${slotNameString[0].toUpperCase()}${slotNameString.slice(
+        1,
+      )}`;
+      Object.defineProperty(this, setterName, {
+        enumerable: true,
+        value: function (value) {
+          this.updateSlot(slotNameString, value);
+          return this;
+        },
+      });
+      return slotValue;
+    },
+  },
+  slotNames: {
+    enumerable: true,
+    value: function Receiver_slotNames() {
+      return Object.getOwnPropertyNames(this);
+    },
+  },
+  getSlot: {
+    enumerable: true,
+    value: function Receiver_getSlot(slotNameString) {
+      return this[slotNameString];
     },
   },
   method: {
@@ -584,9 +668,15 @@ const ReceiverDescriptors = {
         return Symbol.keyFor(msg.name);
       });
       const bodyMsg = argumentsArray[argumentsArray.length - 1];
-      const sender = this.self;
+      // const sender = this.self;
       const method = asMethod(...argNames, function () {
-        return bodyMsg.doInContext(this, sender);
+        return bodyMsg.doInContext(this);
+      });
+      Object.defineProperty(method, 'asString', {
+        enumerable: true,
+        value: function Method_asString() {
+          return `method(${[...argNames, bodyMsg.toString()].join(', ')})`;
+        },
       });
       return method;
     }),
@@ -594,6 +684,22 @@ const ReceiverDescriptors = {
   // evalArgAndReturnSelf: {
   //   enumerable: true,
   // },
+  nil: {
+    enumerable: true,
+    get() {
+      return null;
+    },
+  },
+  do: {
+    enumerable: true,
+    value: asMethod(function Receiver_do() {
+      if (arguments.length !== 1) {
+        throw new Error(`method 'do' expects 1 argument`);
+      }
+      arguments[0].doInContext(this.self);
+      return this;
+    }),
+  },
   '': {
     enumerable: false,
     get() {
@@ -810,7 +916,7 @@ const StrDescriptors = {
         );
       }
       return this.slice(start, end);
-    }
+    },
   },
 };
 
@@ -1075,7 +1181,7 @@ const MessageDescriptors = {
           str += ';';
           str += inArgs ? ' ' : '\n';
         } else if (typeof msg.name === 'string') {
-          str += '"' + msg.name + '" ';
+          str += JSON.stringify(msg.name);
         } else if (typeof msg.name === 'number') {
           str += msg.name + ' ';
         } else {
@@ -1104,7 +1210,7 @@ const MessageDescriptors = {
 
 function createReceiver(prefix, proto, descriptors) {
   const Obj = Object.create(proto, {
-    id: idDescriptor(prefix),
+    [IdSymbol]: idDescriptor(prefix),
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Obj, inst),
     },
@@ -1124,13 +1230,14 @@ function hasProto(proto, inst) {
   return false;
 }
 
-function idDescriptor(prefix) {
+function idDescriptor(prefix, configurable = false) {
   const id =
     prefix +
     '_0x' +
     Math.abs(Date.now() ^ (Math.random() * 10000000000000)).toString(32);
   return {
-    enumerable: true,
+    enumerable: false,
+    configurable,
     get() {
       return id;
     },
@@ -1216,7 +1323,7 @@ const grammar = ohm.grammar(String.raw`Io {
     | Symbol
 
   Arguments
-    = "(" ListOf<Exps, ","> ")"
+    = "(" ListOf<Exps, ","> Terminator? ")"
 
   Symbol
     = number | string | ident
@@ -1284,24 +1391,21 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
         if (typeof assignName.name !== 'symbol') {
           throw new Error(`Assign name must be a symbol`);
         }
+        if (assignName.arguments.length > 0) {
+          throw new Error(`Assign name must not have arguments`);
+        }
         if (!assignValue) {
           throw new Error(`Missing assign value`);
         }
         if (assignEnd) {
           assignEnd.previous?.setNext(null);
         }
-        const assignMsg = env.message(assignMethod, [
-          env.messageLiteral(Symbol.keyFor(assignName.name)),
-          assignValue,
-        ]);
-        if (assignFollow) {
-          assignFollow.setNext(assignMsg);
-        } else {
-          msg = assignMsg;
-        }
-        if (assignEnd) {
-          assignMsg.setNext(assignEnd);
-        }
+        const assignLiteral = env.messageLiteral(
+          Symbol.keyFor(assignName.name),
+        );
+        assignName.setName(Symbol.for(assignMethod));
+        assignName.setArguments([assignLiteral, assignValue]);
+        assignName.setNext(assignEnd);
       }
     }
 
@@ -1446,12 +1550,15 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
     msg.setArguments(args.toMessage(env, assigns, infixes));
     return msg;
   },
-  Arguments(_1, args, _2) {
+  Arguments(_1, args, t, _2) {
     const { env, assigns, infixes } = this.args;
 
     const msgs = args
       .asIteration()
       .children.map((exps) => exps.toMessage(env, assigns, infixes));
+    if (t.sourceString && msgs.length > 0) {
+      msgs[msgs.length - 1].last.setNext(env.messageTerminator());
+    }
     return msgs;
   },
   Symbol(symbol) {
