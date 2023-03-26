@@ -503,16 +503,18 @@ function makeMessage_doInContext(Call, Num, Str, Bool, List) {
           if (cursor === locals) {
             cursor = target;
           }
-          // Convert arrays to `List`s
-          if (Array.isArray(cursor)) {
-            cursor = List.clone().append(...cursor);
-          }
         } else {
           // for normal funciton resolve all args and send
           cursor = cursor.apply(
             target,
             msg.arguments.map((arg) => arg.doInContext(sender)),
           );
+        }
+        // Convert arrays to `List`s
+        if (Array.isArray(cursor)) {
+          const l = cursor;
+          cursor = List.clone();
+          cursor.jsArray = l;
         }
       }
 
@@ -734,6 +736,12 @@ const NumDescriptors = {
       return this <= b;
     },
   },
+  asCharacter: {
+    enumerable: true,
+    value: function Number_asCharacter() {
+      return String.fromCharCode(this);
+    },
+  },
 };
 
 const StrDescriptors = {
@@ -747,6 +755,62 @@ const StrDescriptors = {
       }
       return this + b;
     },
+  },
+  at: {
+    enumerable: true,
+    value: function String_at(index) {
+      if (typeof index !== 'number') {
+        throw new Error(
+          `argument 0 to method 'at' must be a Number. Got ${b}.`,
+        );
+      }
+      return this.charCodeAt(index);
+    },
+  },
+  /**
+   * Returns a list containing the sub-string of the receiver divided by the
+   * given arguments. If no arguments are given the string is split on white
+   * space.
+   */
+  split: {
+    enumerable: true,
+    value: function String_split() {
+      const splitBy = Array.from(arguments);
+      if (!splitBy.every((arg) => typeof arg === 'string')) {
+        throw new Error(`arguments to method 'split' must be Strings.`);
+      }
+      const splitRegExp = new RegExp(splitBy.join('|'), 'gu');
+      return this.split(splitRegExp);
+    },
+  },
+  find: {
+    enumerable: true,
+    value: function List_find(item) {
+      const result = this.indexOf(item);
+      if (result === -1) {
+        return null;
+      }
+      return result;
+    },
+  },
+  slice: {
+    enumerable: true,
+    value: function String_slice(start, end) {
+      if (typeof start !== 'number') {
+        throw new Error(
+          `argument 0 to method 'slice' must be a Number. Got ${start}.`,
+        );
+      }
+      if (typeof end === 'undefined') {
+        return this.slice(start);
+      }
+      if (typeof end !== 'number') {
+        throw new Error(
+          `argument 1 to method 'slice' must be a Number. Got ${end}.`,
+        );
+      }
+      return this.slice(start, end);
+    }
   },
 };
 
@@ -923,6 +987,12 @@ const ListDescriptors = {
       return this;
     }),
   },
+  join: {
+    enumerable: true,
+    value: function List_join(separator) {
+      return this.jsArray.join(separator);
+    },
+  },
 };
 
 const MapDescriptors = {
@@ -964,10 +1034,9 @@ const MapDescriptors = {
   },
   keys: {
     enumerable: true,
-    // As method so that return array will be converted to a List.
-    value: asMethod(function Map_keys() {
+    value: function Map_keys() {
       return [...this.jsMap.keys()];
-    }),
+    },
   },
   foreach: {
     enumerable: true,

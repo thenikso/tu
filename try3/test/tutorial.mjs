@@ -123,6 +123,36 @@ describe('Tutorial: Dictionaries', async (assert) => {
   });
 });
 
+describe('Tutorial: Strings', async (assert) => {
+  const { withEnv, assertReturn, assertLogs } = createUtils(
+    environment,
+    assert,
+  );
+
+  withEnv(() => {
+    assertReturn('a := "foo"', 'foo');
+    assertReturn('b := "bar"', 'bar');
+    assertReturn('c := a..b', 'foobar');
+    assertReturn('c at(0)', 102);
+    assertReturn('c at(0) asCharacter', 'f');
+  });
+
+  withEnv(() => {
+    assertReturn('s := "this is a test"', 'this is a test');
+    assertReturn('words := s split(" ", "\t"); words jsArray', [
+      'this',
+      'is',
+      'a',
+      'test',
+    ]);
+    assertReturn('words join(" ")', 'this is a test');
+    assertReturn('s find("is")', 2);
+    assertReturn('s find("test")', 10);
+    assertReturn('s slice(10)', 'test');
+    assertReturn('s slice(2, 10)', 'is is a ');
+  });
+});
+
 // describe('Tutorial: ', async (assert) => {
 //   const { withEnv, assertReturn, assertLogs } = createUtils(environment, assert);
 
