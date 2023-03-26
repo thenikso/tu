@@ -52,7 +52,6 @@ describe('Tutorial: List', async (assert) => {
     );
     assertReturn('d size', 4);
     assertLogs('d print', 'list(30, 10, 5, 20)');
-    // NOTE sort is in place
     assertReturn('d := d sort; d jsArray', [5, 10, 20, 30]);
     assertReturn('d first', 5);
     assertReturn('d last', 30);

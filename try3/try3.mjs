@@ -729,12 +729,20 @@ const ListDescriptors = {
       return `list(${this.jsArray.join(', ')})`;
     },
   },
-  sort: {
+  sortInPlace: {
     enumerable: true,
-    value: function List_sort() {
+    value: function List_sortInPlace() {
       this.jsArray.sort((a, b) => a - b);
       return this;
     },
+  },
+  sort: {
+    enumerable: true,
+    value: function List_sort() {
+      const copy = this.clone();
+      copy.sortInPlace.apply(copy, arguments);
+      return copy;
+    }
   },
   first: {
     enumerable: true,
