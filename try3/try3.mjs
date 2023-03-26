@@ -72,13 +72,19 @@ export function environment(options) {
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Receiver, inst),
     },
+    print: {
+      enumerable: true,
+      value: function () {
+        return this.println();
+      },
+    },
     println: {
       enumerable: true,
       value: function () {
         if (options?.log) {
-          options?.log(this);
+          options?.log(this?.asString?.() ?? this);
         } else {
-          console.log(this);
+          console.log(this?.asString?.() ?? this);
         }
         return this;
       },
@@ -93,6 +99,12 @@ export function environment(options) {
         }
         return this;
       }),
+    },
+    list: {
+      enumerable: true,
+      value: function (...items) {
+        return List.clone().append(...items);
+      },
     },
   });
 
@@ -564,12 +576,14 @@ const ReceiverDescriptors = {
     value: asMethod('condition', function Receiver_if(condition) {
       if (condition) {
         const then = arguments[1];
-        return then ? then.doInContext(this.call.sender) : null;
+        return then ? then.doInContext(this.call.sender) : true;
       }
       const otherwise = arguments[2];
-      return otherwise ? otherwise.doInContext(this.call.sender) : null;
+      return otherwise ? otherwise.doInContext(this.call.sender) : false;
     }),
   },
+  // TODO `then` is evalArgAndReturnNil
+  then: {},
 };
 
 const CallDescriptors = {
@@ -619,6 +633,46 @@ const NumDescriptors = {
       return Math.sqrt(this);
     },
   },
+  '>': {
+    enumerable: true,
+    value: function Number_greaterThan(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(`argument 0 to method '>' must be a Number. Got ${b}.`);
+      }
+      return this > b;
+    },
+  },
+  '>=': {
+    enumerable: true,
+    value: function Number_greaterThanOrEqual(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(
+          `argument 0 to method '>=' must be a Number. Got ${b}.`,
+        );
+      }
+      return this >= b;
+    },
+  },
+  '<': {
+    enumerable: true,
+    value: function Number_lessThan(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(`argument 0 to method '<' must be a Number. Got ${b}.`);
+      }
+      return this < b;
+    },
+  },
+  '<=': {
+    enumerable: true,
+    value: function Number_lessThanOrEqual(b = null) {
+      if (typeof b !== 'number') {
+        throw new Error(
+          `argument 0 to method '<=' must be a Number. Got ${b}.`,
+        );
+      }
+      return this <= b;
+    },
+  },
 };
 
 const StrDescriptors = {
@@ -663,7 +717,171 @@ const ListDescriptors = {
       return this;
     },
   },
+  size: {
+    enumerable: true,
+    value: function List_size() {
+      return this.jsArray.length;
+    },
+  },
+  asString: {
+    enumerable: true,
+    value: function List_print() {
+      return `list(${this.jsArray.join(', ')})`;
+    },
+  },
+  sort: {
+    enumerable: true,
+    value: function List_sort() {
+      this.jsArray.sort((a, b) => a - b);
+      return this;
+    },
+  },
+  first: {
+    enumerable: true,
+    value: function List_first() {
+      return this.jsArray[0] ?? null;
+    },
+  },
+  last: {
+    enumerable: true,
+    value: function List_last() {
+      return this.jsArray[this.jsArray.length - 1] ?? null;
+    },
+  },
+  at: {
+    enumerable: true,
+    value: function List_at(index) {
+      if (typeof index !== 'number') {
+        throw new Error(
+          `argument 0 to method 'at' must be a Number. Got ${index}.`,
+        );
+      }
+      return this.jsArray[index] ?? null;
+    },
+  },
+  remove: {
+    enumerable: true,
+    value: function List_remove(item) {
+      const index = this.jsArray.indexOf(item);
+      if (index >= 0) {
+        this.jsArray.splice(index, 1);
+      }
+      return this;
+    },
+  },
+  atPut: {
+    enumerable: true,
+    value: function List_atPut(index, item) {
+      if (typeof index !== 'number') {
+        throw new Error(
+          `argument 0 to method 'atPut' must be a Number. Got ${index}.`,
+        );
+      }
+      this.jsArray[index] = item;
+      return this;
+    },
+  },
+  select: {
+    enumerable: true,
+    value: asMethod(function List_select() {
+      const resultList = this.clone();
+      listWithIndexItemBody(this.call, arguments, (cb) => {
+        resultList.jsArray = this.jsArray.filter(cb);
+      });
+      return resultList;
+    }),
+  },
+  /**
+   * Returns the first value for which the message evaluates to a non-nil.
+   */
+  detect: {
+    enumerable: true,
+    value: asMethod(function List_detect() {
+      return (
+        listWithIndexItemBody(this.call, arguments, (cb) => {
+          for (let i = 0, l = this.jsArray.length; i < l; i++) {
+            const item = this.jsArray[i];
+            const result = cb(item);
+            if (result !== null) {
+              return item;
+            }
+          }
+        }) ?? null
+      );
+    }),
+  },
+  mapInPlace: {
+    enumerable: true,
+    value: asMethod(function List_map() {
+      listWithIndexItemBody(this.call, arguments, (cb) => {
+        this.jsArray = this.jsArray.map(cb);
+      });
+      return this;
+    }),
+  },
+  map: {
+    enumerable: true,
+    value: asMethod(function List_map() {
+      const copy = this.clone();
+      copy.mapInPlace.apply(copy, arguments);
+      return copy;
+    }),
+  },
 };
+
+/**
+ * List utility function for methods that take a block with an optional index
+ * and item argument. For example:
+ *     list(1, 2, 3) map(<2)                // only body
+ *     list(1, 2, 3) map(x, x<2)            // item and body
+ *     list(1, 2, 3) map(i, x, x<2 && i>0)  // index, item, and body
+ * @param {Call} call
+ * @param {Message[]} args
+ * @param {(cb: (item: any) => any) => any} fn
+ */
+function listWithIndexItemBody(call, args, fn) {
+  const argCount = args.length;
+  let body;
+  if (argCount === 0) {
+    throw new Error(`missing argument`);
+  }
+  if (argCount === 1) {
+    body = args[0];
+    return fn((item) => body.doInContext(item));
+  } else if (argCount === 2) {
+    const eName =
+      typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+    if (!eName) {
+      throw new Error(`argument 0 must be a Symbol`);
+    }
+    body = args[1];
+    const context = call.sender.clone();
+    return fn((item) => {
+      context.setSlot(eName, item);
+      return body.doInContext(context);
+    });
+  } else if (argCount === 3) {
+    const iName =
+      typeof args[0].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+    if (!eName) {
+      throw new Error(`argument 0 must be a Symbol`);
+    }
+    const eName =
+      typeof args[1].name === 'symbol' ? Symbol.keyFor(args[0].name) : null;
+    if (!eName) {
+      throw new Error(`argument 1 must be a Symbol`);
+    }
+    body = args[2];
+    const context = call.sender.clone();
+    return fn((item, index) => {
+      context.setSlot(iName, index);
+      context.setSlot(eName, item);
+      return body.doInContext(context);
+    });
+  } else {
+    throw new Error(`too many arguments`);
+  }
+}
 
 const MessageDescriptors = {
   last: {
