@@ -37,7 +37,7 @@ export function createUtils(createEnv, assert) {
       assert({
         given: `\`${code}\``,
         should: `parse as \`${expected}\``,
-        actual: (currentEnv ?? createEnv()).parse(code).toString(),
+        actual: (currentEnv ?? createEnv()).parse(code).asString(),
         expected,
       });
     },

@@ -81,6 +81,23 @@ export function environment(options) {
     [Symbol.hasInstance]: {
       value: (inst) => hasProto(Receiver, inst),
     },
+    clone: {
+      enumerable: true,
+      /**
+       * Clones the receiver and calls `init` if it exists.
+       * @returns {Receiver}
+       */
+      value: function Receiver_clone() {
+        const obj = Object.create(this, {
+          [IdSymbol]: idDescriptor(this.type, true),
+        });
+        if ('init' in obj) {
+          message(Symbol.for('init')).doInContext(obj);
+          // obj.init?.();
+        }
+        return obj;
+      },
+    },
     print: {
       enumerable: true,
       value: function () {
@@ -228,6 +245,7 @@ export function environment(options) {
       },
     },
   });
+  const Exception = createReceiver('Exception', Receiver, ExceptionDescriptors);
 
   const Core = createReceiver('Core', Receiver, {
     Object: {
@@ -262,6 +280,10 @@ export function environment(options) {
       enumerable: true,
       value: MapReceiver,
     },
+    Exception: {
+      enumerable: true,
+      value: Exception,
+    },
   });
 
   const Lobby = createReceiver('Lobby', Core);
@@ -286,6 +308,7 @@ export function environment(options) {
     let _next = null;
     let _prev = null;
     return Object.create(Message, {
+      [IdSymbol]: idDescriptor('Message'),
       name: {
         enumerable: true,
         get() {
@@ -457,7 +480,7 @@ function makeMessage_doInContext(Call, Num, Str, Bool, List) {
       }
       if (typeof slot === 'undefined') {
         throw new Error(
-          `${target.id ?? typeof target} does not respond to '${
+          `${target.type ?? typeof target} does not respond to '${
             typeof msg.name === 'symbol' ? Symbol.keyFor(msg.name) : msg.name
           }'`,
         );
@@ -468,7 +491,7 @@ function makeMessage_doInContext(Call, Num, Str, Bool, List) {
       if (typeof cursor === 'function') {
         methodArgs = cursor[MethodArgsSymbol];
         if (methodArgs) {
-          const locals = Object.create(localsTarget, {
+          const newLocals = Object.create(localsTarget, {
             self: {
               enumerable: true,
               value: target,
@@ -505,7 +528,7 @@ function makeMessage_doInContext(Call, Num, Str, Bool, List) {
           // Eval args requested by method
           const localArgs = [];
           for (i = 0, l = methodArgs.length; i < l; i++) {
-            locals[methodArgs[i]] = localArgs[i] =
+            newLocals[methodArgs[i]] = localArgs[i] =
               msg.arguments[i]?.doInContext(sender) ?? null;
           }
           // other arguments will be sent as `Message`s in `arguments`
@@ -513,11 +536,14 @@ function makeMessage_doInContext(Call, Num, Str, Bool, List) {
             localArgs[i] = msg.arguments[i];
           }
           // Apply method
-          cursor = cursor.apply(locals, localArgs);
+          cursor = cursor.apply(newLocals, localArgs);
           // Methods may return `this` so if `cursor` is `locals`
           // then we need to return `target` instead
-          if (cursor === locals) {
-            cursor = target;
+          if (cursor === newLocals) {
+            // cursor = target;
+            throw new Error(
+              `Method '${slotName}' returned 'this' which is not allowed, use 'this.self' instead`,
+            );
           }
         } else {
           // for normal funciton resolve all args and send
@@ -581,16 +607,6 @@ const ReceiverDescriptors = {
       return this[IdSymbol].split('_')[0];
     },
   },
-  clone: {
-    enumerable: true,
-    value: function Receiver_clone() {
-      const obj = Object.create(this, {
-        [IdSymbol]: idDescriptor(this.type, true),
-      });
-      obj.init?.();
-      return obj;
-    },
-  },
   setSlot: {
     enumerable: true,
     value: function Receiver_setSlot(slotNameString, slotValue) {
@@ -641,6 +657,12 @@ const ReceiverDescriptors = {
       return slotValue;
     },
   },
+  hasSlot: {
+    enumerable: true,
+    value: function Receiver_hasSlot(slotNameString) {
+      return slotNameString in this;
+    },
+  },
   slotNames: {
     enumerable: true,
     value: function Receiver_slotNames() {
@@ -651,6 +673,12 @@ const ReceiverDescriptors = {
     enumerable: true,
     value: function Receiver_getSlot(slotNameString) {
       return this[slotNameString];
+    },
+  },
+  doMessage: {
+    enumerable: true,
+    value: function Receiver_doMessage(msg) {
+      return msg.doInContext(this);
     },
   },
   method: {
@@ -675,15 +703,12 @@ const ReceiverDescriptors = {
       Object.defineProperty(method, 'asString', {
         enumerable: true,
         value: function Method_asString() {
-          return `method(${[...argNames, bodyMsg.toString()].join(', ')})`;
+          return `method(${[...argNames, bodyMsg.asString()].join(', ')})`;
         },
       });
       return method;
     }),
   },
-  // evalArgAndReturnSelf: {
-  //   enumerable: true,
-  // },
   nil: {
     enumerable: true,
     get() {
@@ -697,7 +722,7 @@ const ReceiverDescriptors = {
         throw new Error(`method 'do' expects 1 argument`);
       }
       arguments[0].doInContext(this.self);
-      return this;
+      return this.self;
     }),
   },
   '': {
@@ -718,10 +743,10 @@ const ReceiverDescriptors = {
     value: asMethod('condition', function Receiver_if(condition) {
       if (condition) {
         const then = arguments[1];
-        return then ? then.doInContext(this.call.sender) : true;
+        return then ? then.doInContext(this.self) : true;
       }
       const otherwise = arguments[2];
-      return otherwise ? otherwise.doInContext(this.call.sender) : false;
+      return otherwise ? otherwise.doInContext(this.self) : false;
     }),
   },
   for: {
@@ -736,11 +761,11 @@ const ReceiverDescriptors = {
       if (!iName) {
         throw new Error(`argument 0 to method 'for' must be a symbol`);
       }
-      const start = arguments[1].doInContext(this.call.sender);
+      const start = arguments[1].doInContext(this.self);
       if (typeof start !== 'number') {
         throw new Error(`argument 1 to method 'for' must be a Number`);
       }
-      const end = arguments[2].doInContext(this.call.sender);
+      const end = arguments[2].doInContext(this.self);
       if (typeof end !== 'number') {
         throw new Error(`argument 2 to method 'for' must be a Number`);
       }
@@ -855,9 +880,7 @@ const StrDescriptors = {
     enumerable: true,
     value: function String_concat(b) {
       if (typeof b !== 'string') {
-        throw new Error(
-          `argument 0 to method '..' must be a String. Got ${b}.`,
-        );
+        throw new Error(`argument 0 to method '..' must be a String.`);
       }
       return this + b;
     },
@@ -930,9 +953,10 @@ const BoolDescriptors = {
         throw new Error(`argument 0 to method 'ifTrue' is required`);
       }
       if (this.self === true) {
+        // TODO is this the right context?
         trueBlock.doInContext(this.call.sender);
       }
-      return this;
+      return this.self;
     }),
   },
   ifFalse: {
@@ -945,8 +969,14 @@ const BoolDescriptors = {
       if (this.self === false) {
         falseBlock.doInContext(this.call.sender);
       }
-      return this;
+      return this.self;
     }),
+  },
+  not: {
+    enumerable: true,
+    value: function Boolean_not() {
+      return !this;
+    },
   },
 };
 
@@ -1039,9 +1069,9 @@ const ListDescriptors = {
   select: {
     enumerable: true,
     value: asMethod(function List_select() {
-      const resultList = this.clone();
-      withIndexItemBody(this.call, arguments, (cb) => {
-        resultList.jsArray = this.jsArray.filter(cb);
+      const resultList = this.self.clone();
+      withIndexItemBody(this, arguments, (cb) => {
+        resultList.jsArray = this.self.jsArray.filter(cb);
       });
       return resultList;
     }),
@@ -1053,9 +1083,9 @@ const ListDescriptors = {
     enumerable: true,
     value: asMethod(function List_detect() {
       return (
-        withIndexItemBody(this.call, arguments, (cb) => {
-          for (let i = 0, l = this.jsArray.length; i < l; i++) {
-            const item = this.jsArray[i];
+        withIndexItemBody(this, arguments, (cb) => {
+          for (let i = 0, l = this.self.jsArray.length; i < l; i++) {
+            const item = this.self.jsArray[i];
             const result = cb(item);
             if (result !== null) {
               return item;
@@ -1068,29 +1098,36 @@ const ListDescriptors = {
   mapInPlace: {
     enumerable: true,
     value: asMethod(function List_map() {
-      withIndexItemBody(this.call, arguments, (cb) => {
-        this.jsArray = this.jsArray.map(cb);
+      withIndexItemBody(this, arguments, (cb) => {
+        this.self.jsArray = this.self.jsArray.map(cb);
       });
-      return this;
+      return this.self;
     }),
   },
   map: {
     enumerable: true,
     value: asMethod(function List_map() {
-      const copy = this.clone();
-      copy.mapInPlace.apply(copy, arguments);
+      const copy = this.self.clone();
+      // TODO this is `call delegateToMethod(self clone, "mapInPlace")`
+      const newLocals = Object.create(this, {
+        self: {
+          enumerable: true,
+          value: copy,
+        },
+      });
+      copy.mapInPlace.apply(newLocals, arguments);
       return copy;
     }),
   },
   foreach: {
     enumerable: true,
     value: asMethod(function List_foreach() {
-      withIndexItemBody(this.call, arguments, (cb) => {
-        for (let i = 0, l = this.jsArray.length; i < l; i++) {
-          cb(this.jsArray[i], i);
+      withIndexItemBody(this, arguments, (cb) => {
+        for (let i = 0, l = this.self.jsArray.length; i < l; i++) {
+          cb(this.self.jsArray[i], i);
         }
       });
-      return this;
+      return this.self;
     }),
   },
   join: {
@@ -1147,13 +1184,22 @@ const MapDescriptors = {
   foreach: {
     enumerable: true,
     value: asMethod(function Map_foreach() {
-      withIndexItemBody(this.call, arguments, (cb) => {
-        for (const [key, value] of this.jsMap.entries()) {
+      withIndexItemBody(this, arguments, (cb) => {
+        for (const [key, value] of this.self.jsMap.entries()) {
           cb(value, key);
         }
       });
-      return this;
+      return this.self;
     }),
+  },
+};
+
+const ExceptionDescriptors = {
+  raise: {
+    enumerable: true,
+    value: function Exception_raise(error) {
+      throw new Error(error);
+    },
   },
 };
 
@@ -1168,9 +1214,9 @@ const MessageDescriptors = {
       return last;
     },
   },
-  toString: {
+  asString: {
     enumerable: true,
-    value: function Message_toString() {
+    value: function Message_asString() {
       let str = '';
       /** @type {Message} */
       let msg = this;
@@ -1190,7 +1236,7 @@ const MessageDescriptors = {
             inArgs = true;
             str += '(';
             str += msg.arguments
-              .map((arg) => arg.toString().trimEnd())
+              .map((arg) => arg.asString().trimEnd())
               .join(', ');
             str += ')';
             inArgs = false;
@@ -1200,6 +1246,12 @@ const MessageDescriptors = {
         msg = msg.next;
       } while (msg);
       return str.trim();
+    },
+  },
+  argAt: {
+    enumerable: true,
+    value: function Message_argAt(index) {
+      return this.arguments[index] ?? null;
     },
   },
 };
@@ -1250,11 +1302,11 @@ function idDescriptor(prefix, configurable = false) {
  *     list(1, 2, 3) map(<2)                // only body
  *     list(1, 2, 3) map(x, x<2)            // item and body
  *     list(1, 2, 3) map(i, x, x<2 && i>0)  // index, item, and body
- * @param {Call} call
+ * @param {{call: Call, self: Receiver}} locals
  * @param {Message[]} args
  * @param {(cb: (item: any) => any) => any} fn
  */
-function withIndexItemBody(call, args, fn) {
+function withIndexItemBody(locals, args, fn) {
   const argCount = args.length;
   let body;
   if (argCount === 0) {
@@ -1270,7 +1322,8 @@ function withIndexItemBody(call, args, fn) {
       throw new Error(`argument 0 must be a Symbol`);
     }
     body = args[1];
-    const context = call.sender.clone();
+    // Do not use `clone` as it could recurse via `init` call
+    const context = Object.create(locals);
     return fn((item) => {
       context.setSlot(eName, item);
       return body.doInContext(context);
@@ -1287,7 +1340,7 @@ function withIndexItemBody(call, args, fn) {
       throw new Error(`argument 1 must be a Symbol`);
     }
     body = args[2];
-    const context = call.sender.clone();
+    const context = Object.create(locals);
     return fn((item, index) => {
       context.setSlot(iName, index);
       context.setSlot(eName, item);
@@ -1366,6 +1419,12 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
       allInfixes,
       priorities: infixPriorities,
       messagesByPriority: {},
+      // A syntethic message name to be used in the case of infix resolution
+      groupEndSymbol: Symbol('groupEnd'),
+      // In the case an exp starts with a parathesis, we need to terminate infix
+      // resolution early. We save those messages here because they need to be
+      // removed from the final message anyway.
+      groupEndMessages: [],
     };
     let msg = exps.toMessage(env, assigns, infixes);
 
@@ -1450,8 +1509,8 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
      * with a (resolved) infix name.
      */
     for (const [priority, infixMsgs] of infixMessages) {
-      const infixesNamesAlreadyResolved = allPriorities
-        .filter((p) => p < priority)
+      const infixesNotYetResolved = allPriorities
+        .filter((p) => p >= priority)
         .flatMap((p) => infixesByPriority[p]);
       for (const infixMsg of infixMsgs) {
         const arg = infixMsg.next;
@@ -1460,8 +1519,10 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
         }
         let argEnd = arg.next;
         while (
-          typeof argEnd?.name === 'symbol' &&
-          infixesNamesAlreadyResolved.includes(Symbol.keyFor(argEnd.name))
+          argEnd &&
+          argEnd.name !== MessageTerminatorSymbol &&
+          argEnd.name !== infixes.groupEndSymbol &&
+          !infixesNotYetResolved.includes(Symbol.keyFor(argEnd.name))
         ) {
           argEnd = argEnd.next;
         }
@@ -1474,6 +1535,11 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
         // Set next to argEnd
         infixMsg.setNext(argEnd);
       }
+    }
+
+    // Remove group end messages
+    for (const groupEndMsg of infixes.groupEndMessages) {
+      groupEndMsg.previous.setNext(groupEndMsg.next);
     }
 
     return msg;
@@ -1510,7 +1576,16 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
   Exp_parentheses(lb, exp, rb) {
     const { env, assigns, infixes } = this.args;
 
-    return exp.toMessage(env, assigns, infixes);
+    // Having an `(exp)` only happens if it's the first message after a
+    // terminator (or the first message of the program), because other
+    // parenthesis are handled by the `Arguments` rule.
+    // So here we insert a temporary message to be able to resolve
+    // the infixes.
+    const msg = exp.toMessage(env, assigns, infixes);
+    const groupEndMsg = env.messageLiteral(infixes.groupEndSymbol);
+    infixes.groupEndMessages.push(groupEndMsg);
+    msg.last.setNext(groupEndMsg);
+    return msg;
   },
   Exp_curlyBrackets(lb, exp, rb) {
     // TODO use env.Receiver.curlyBrackets

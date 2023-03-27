@@ -23,7 +23,7 @@ describe('Tutorial: Variables', async (assert) => {
   });
 });
 
-describe('Tutorial: ', async (assert) => {
+describe('Tutorial: Conditions', async (assert) => {
   const { assertReturn, withEnv, assertLogs } = createUtils(
     environment,
     assert,
@@ -217,6 +217,60 @@ describe('Tutorial: Objects', async (assert) => {
       'Apple Inc.\nCare of: Steve\n1 Infinite Loop\nCupertino',
     );
   });
+});
+
+describe('Tutorial: Lazy Evaluation', async (assert) => {
+  const { assertError } = createUtils(environment, assert);
+
+  assertError(
+    `
+    assert := method(
+      call sender doMessage(call message argAt(0)) ifFalse(
+        Exception raise("failed assertion: " .. call message asString)
+      )
+    );
+
+    assert(1 == 3)`,
+    'failed assertion: assert(1 ==(3))',
+  );
+});
+
+describe.only('Tutorial: Introspection', async (assert) => {
+  const { assertError, assertReturn } = createUtils(environment, assert);
+
+  assertReturn(
+    `
+    Address := Object clone do(
+      fields ::= list("name", "street", "city", "state", "zipCode");
+
+      init := method(
+        fields foreach(key,
+          if (self hasSlot(key) not,
+            self newSlot(key, nil)
+          )
+        )
+      );
+
+      emptyFields := method(
+        fields select(k, self getSlot(k) == nil)
+      );
+
+      isValid := method(errors size == 0);
+
+      assertValid := method(
+        if (emptyFields size,
+          Exception raise(
+            self type .. " missing: " .. emptyFields join(", ")
+          )
+        )
+      );
+    );
+
+    anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+
+    anAddress assertValid`,
+    '',
+  );
 });
 
 // describe('Tutorial: ', async (assert) => {
