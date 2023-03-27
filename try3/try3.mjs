@@ -93,7 +93,6 @@ export function environment(options) {
         });
         if ('init' in obj) {
           message(Symbol.for('init')).doInContext(obj);
-          // obj.init?.();
         }
         return obj;
       },
@@ -132,6 +131,20 @@ export function environment(options) {
       value: function (...items) {
         return List.clone().append(...items);
       },
+    },
+    try: {
+      enumerable: true,
+      value: asMethod(function Receiver_try() {
+        const body = arguments[0];
+        if (body) {
+          try {
+            body.doInContext(this.self);
+            return null;
+          } catch (error) {
+            return exception(error);
+          }
+        }
+      }),
     },
   });
 
@@ -204,7 +217,7 @@ export function environment(options) {
     },
   });
   const Call = createReceiver('Call', Receiver, CallDescriptors);
-  const Nil = createReceiver('Nil', Receiver);
+  const Nil = createReceiver('Nil', Receiver, NilDescriptors);
   const Num = createReceiver('Number', Receiver, NumDescriptors);
   const Str = createReceiver('String', Receiver, StrDescriptors);
   const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
@@ -247,6 +260,12 @@ export function environment(options) {
     },
   });
   const Exception = createReceiver('Exception', Receiver, ExceptionDescriptors);
+
+  function exception(error) {
+    const obj = Exception.clone();
+    obj.error = error;
+    return obj;
+  }
 
   const Core = createReceiver('Core', Receiver, {
     Object: {
@@ -801,6 +820,15 @@ const CallDescriptors = {
   // TODO call descriptors
 };
 
+const justNull = () => null;
+
+const NilDescriptors = {
+  catch: {
+    enumerable: false,
+    value: justNull,
+  },
+};
+
 const NumDescriptors = {
   '+': {
     enumerable: true,
@@ -1217,6 +1245,18 @@ const ExceptionDescriptors = {
     value: function Exception_raise(error) {
       throw new Error(error);
     },
+  },
+  catch: {
+    enumerable: true,
+    value: asMethod('exceptionProto', function Exception_catch(exceptionProto) {
+      if (this.self instanceof exceptionProto) {
+        const body = arguments[1];
+        if (body) {
+          body.doInContext(this.call.sender);
+        }
+      }
+      return this.self;
+    }),
   },
 };
 

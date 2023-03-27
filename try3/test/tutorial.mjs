@@ -236,45 +236,62 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
 });
 
 describe('Tutorial: Introspection', async (assert) => {
-  const { assertError, assertReturn } = createUtils(environment, assert);
+  const { withEnv, assertError, assertLogs } = createUtils(
+    environment,
+    assert,
+  );
 
-  assertError(
-    `
-    Address := Object clone do(
-      fields ::= list("name", "street", "city", "state", "zipCode");
+  withEnv(() => {
+    assertError(
+      `
+      Address := Object clone do(
+        fields ::= list("name", "street", "city", "state", "zipCode");
 
-      init := method(
-        fields foreach(key,
-          if (self hasSlot(key) not,
-            self newSlot(key, nil)
+        init := method(
+          fields foreach(key,
+            if (self hasSlot(key) not,
+              self newSlot(key, nil)
+            )
           )
-        )
-      );
+        );
 
-      emptyFields := method(
-        fields select(k, self getSlot(k) == nil)
-      );
+        emptyFields := method(
+          fields select(k, self getSlot(k) == nil)
+        );
 
-      isValid := method(errors size == 0);
+        isValid := method(errors size == 0);
 
-      assertValid := method(
-        if (emptyFields size,
-          Exception raise(
-            self type .. " missing: " .. emptyFields join(", ")
+        assertValid := method(
+          if (emptyFields size,
+            Exception raise(
+              self type .. " missing: " .. emptyFields join(", ")
+            )
           )
-        )
+        );
       );
+
+      anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+
+      anAddress assertValid`,
+      'Address missing: city, state, zipCode',
     );
 
-    anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+    assertLogs(
+      `
+      e := try(
+        anAddress assertValid
+      );
 
-    anAddress assertValid`,
-    'Address missing: city, state, zipCode',
-  );
+      e catch(Exception,
+          writeln("Caught: ", e error message)
+      )`,
+      'Caught: Address missing: city, state, zipCode',
+    );
+  });
 });
 
 // describe('Tutorial: ', async (assert) => {
-//   const { withEnv, assertReturn, assertLogs } = createUtils(environment, assert);
+//   const { withEnv, assertReturn, assertLogs, assertError } = createUtils(environment, assert);
 
 //   assertReturn('', );
 // });
