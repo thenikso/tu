@@ -204,6 +204,7 @@ export function environment(options) {
     },
   });
   const Call = createReceiver('Call', Receiver, CallDescriptors);
+  const Nil = createReceiver('Nil', Receiver);
   const Num = createReceiver('Number', Receiver, NumDescriptors);
   const Str = createReceiver('String', Receiver, StrDescriptors);
   const Bool = createReceiver('Boolean', Receiver, BoolDescriptors);
@@ -292,7 +293,7 @@ export function environment(options) {
     ...MessageDescriptors,
     doInContext: {
       enumerable: true,
-      value: makeMessage_doInContext(Call, Num, Str, Bool, List),
+      value: makeMessage_doInContext(Lobby, Call, Nil, Num, Str, Bool, List),
     },
   });
 
@@ -418,7 +419,7 @@ export function environment(options) {
  * It's done this way because we need instances of Receivers for the
  * specific environment.
  */
-function makeMessage_doInContext(Call, Num, Str, Bool, List) {
+function makeMessage_doInContext(Lobby, Call, Nil, Num, Str, Bool, List) {
   /**
    * @param {Receiver} context
    * @param {Receiver=} locals
@@ -475,7 +476,19 @@ function makeMessage_doInContext(Call, Num, Str, Bool, List) {
             localsTarget = Bool;
             break;
           default:
-            slot = target[slotName];
+            if (target === null) {
+              slot = Nil[slotName];
+              localsTarget = Nil;
+            } else {
+              slot = target[slotName];
+            }
+            break;
+        }
+        if (typeof slot === 'undefined' && locals) {
+          slot = locals[slotName];
+        }
+        if (typeof slot === 'undefined') {
+          slot = Lobby[slotName];
         }
       }
       if (typeof slot === 'undefined') {
@@ -672,7 +685,7 @@ const ReceiverDescriptors = {
   getSlot: {
     enumerable: true,
     value: function Receiver_getSlot(slotNameString) {
-      return this[slotNameString];
+      return this[slotNameString] ?? null;
     },
   },
   doMessage: {
@@ -696,8 +709,10 @@ const ReceiverDescriptors = {
         return Symbol.keyFor(msg.name);
       });
       const bodyMsg = argumentsArray[argumentsArray.length - 1];
-      // const sender = this.self;
+      // const sender = this.sender;
       const method = asMethod(...argNames, function () {
+        // TODO this should really be like this?
+        // return bodyMsg.doInContext(this, sender);
         return bodyMsg.doInContext(this);
       });
       Object.defineProperty(method, 'asString', {
@@ -743,10 +758,12 @@ const ReceiverDescriptors = {
     value: asMethod('condition', function Receiver_if(condition) {
       if (condition) {
         const then = arguments[1];
-        return then ? then.doInContext(this.self) : true;
+        return then ? then.doInContext(this.self, this.call.sender) : true;
       }
       const otherwise = arguments[2];
-      return otherwise ? otherwise.doInContext(this.self) : false;
+      return otherwise
+        ? otherwise.doInContext(this.self, this.call.sender)
+        : false;
     }),
   },
   for: {
@@ -773,7 +790,7 @@ const ReceiverDescriptors = {
       const locals = Object.create(this);
       for (let i = start; i <= end; i++) {
         locals[iName] = i;
-        body.doInContext(locals);
+        body.doInContext(this.call.sender, locals);
       }
       return end;
     }),
@@ -1308,6 +1325,7 @@ function idDescriptor(prefix, configurable = false) {
  */
 function withIndexItemBody(locals, args, fn) {
   const argCount = args.length;
+  const sender = locals.call.sender;
   let body;
   if (argCount === 0) {
     throw new Error(`missing argument`);
@@ -1323,10 +1341,10 @@ function withIndexItemBody(locals, args, fn) {
     }
     body = args[1];
     // Do not use `clone` as it could recurse via `init` call
-    const context = Object.create(locals);
+    const context = locals; // const context = Object.create(locals);
     return fn((item) => {
       context.setSlot(eName, item);
-      return body.doInContext(context);
+      return body.doInContext(sender, context);
     });
   } else if (argCount === 3) {
     const iName =
@@ -1340,11 +1358,11 @@ function withIndexItemBody(locals, args, fn) {
       throw new Error(`argument 1 must be a Symbol`);
     }
     body = args[2];
-    const context = Object.create(locals);
+    const context = locals; // const context = Object.create(locals);
     return fn((item, index) => {
       context.setSlot(iName, index);
       context.setSlot(eName, item);
-      return body.doInContext(context);
+      return body.doInContext(sender, context);
     });
   } else {
     throw new Error(`too many arguments`);

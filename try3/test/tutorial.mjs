@@ -235,10 +235,10 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
   );
 });
 
-describe.only('Tutorial: Introspection', async (assert) => {
+describe('Tutorial: Introspection', async (assert) => {
   const { assertError, assertReturn } = createUtils(environment, assert);
 
-  assertReturn(
+  assertError(
     `
     Address := Object clone do(
       fields ::= list("name", "street", "city", "state", "zipCode");
@@ -269,7 +269,7 @@ describe.only('Tutorial: Introspection', async (assert) => {
     anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
 
     anAddress assertValid`,
-    '',
+    'Address missing: city, state, zipCode',
   );
 });
 
