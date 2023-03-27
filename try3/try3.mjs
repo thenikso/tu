@@ -506,6 +506,9 @@ function makeMessage_doInContext(Lobby, Call, Nil, Num, Str, Bool, List) {
         if (typeof slot === 'undefined' && locals) {
           slot = locals[slotName];
         }
+        if (typeof slot === 'undefined' && target.forward) {
+          slot = target.forward;
+        }
         if (typeof slot === 'undefined') {
           slot = Lobby[slotName];
         }
@@ -707,6 +710,30 @@ const ReceiverDescriptors = {
       return this[slotNameString] ?? null;
     },
   },
+  evalArg: {
+    enumerable: true,
+    value: asMethod(function Receiver_evalArg() {
+      const arg = arguments[0];
+      if (!arg) {
+        throw new Error(`argument required for 'evalArg'`);
+      }
+      return arg.doInContext(this.call.sender);
+    }),
+  },
+  evalArgAndReturnSelf: {
+    enumerable: true,
+    value: asMethod(function Receiver_evalArgAndReturnSelf() {
+      this.evalArg.apply(this, arguments);
+      return this.self;
+    }),
+  },
+  evalArgAndReturnNil: {
+    enumerable: true,
+    value: asMethod(function Receiver_evalArgAndReturnNil() {
+      this.evalArg.apply(this, arguments);
+      return null;
+    }),
+  },
   doMessage: {
     enumerable: true,
     value: function Receiver_doMessage(msg) {
@@ -771,7 +798,6 @@ const ReceiverDescriptors = {
       return this === other;
     },
   },
-  // TODO `then` is evalArgAndReturnNil
   if: {
     enumerable: true,
     value: asMethod('condition', function Receiver_if(condition) {
@@ -820,12 +846,10 @@ const CallDescriptors = {
   // TODO call descriptors
 };
 
-const justNull = () => null;
-
 const NilDescriptors = {
-  catch: {
+  forward: {
     enumerable: false,
-    value: justNull,
+    value: () => null,
   },
 };
 
@@ -993,13 +1017,11 @@ const BoolDescriptors = {
   ifTrue: {
     enumerable: true,
     value: asMethod(function Boolean_ifTrue() {
-      const trueBlock = arguments[0];
-      if (typeof trueBlock === 'undefined') {
-        throw new Error(`argument 0 to method 'ifTrue' is required`);
-      }
       if (this.self === true) {
-        // TODO is this the right context?
-        trueBlock.doInContext(this.call.sender);
+        return ReceiverDescriptors.evalArgAndReturnSelf.value.apply(
+          this,
+          arguments,
+        );
       }
       return this.self;
     }),
@@ -1007,12 +1029,44 @@ const BoolDescriptors = {
   ifFalse: {
     enumerable: true,
     value: asMethod(function Boolean_ifFalse() {
-      const falseBlock = arguments[0];
-      if (typeof falseBlock === 'undefined') {
-        throw new Error(`argument 0 to method 'ifFalse' is required`);
-      }
       if (this.self === false) {
-        falseBlock.doInContext(this.call.sender);
+        return ReceiverDescriptors.evalArgAndReturnSelf.value.apply(
+          this,
+          arguments,
+        );
+      }
+      return this.self;
+    }),
+  },
+  then: {
+    enumerable: true,
+    value: asMethod(function Boolean_then() {
+      if (this.self === true) {
+        return ReceiverDescriptors.evalArgAndReturnNil.value.apply(
+          this,
+          arguments,
+        );
+      }
+      return this.self;
+    }),
+  },
+  else: {
+    enumerable: true,
+    value: asMethod(function Boolean_else() {
+      if (this.self === false) {
+        return ReceiverDescriptors.evalArgAndReturnNil.value.apply(
+          this,
+          arguments,
+        );
+      }
+      return this.self;
+    }),
+  },
+  elseif: {
+    enumerable: true,
+    value: asMethod('condition', function Boolean_elseif(condition) {
+      if (this.self === false) {
+        return condition;
       }
       return this.self;
     }),
