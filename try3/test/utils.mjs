@@ -16,6 +16,14 @@ export function createUtils(createEnv, assert) {
         expected: ret,
       });
     },
+    async assertAsyncReturn(code, ret) {
+      assert({
+        given: `\`${code}\``,
+        should: `return ${typeof ret === 'string' ? `"${ret}"` : ret}`,
+        actual: await (currentEnv ?? createEnv()).eval(code),
+        expected: ret,
+      });
+    },
     assertError(code, error) {
       assert({
         given: `\`${code}\``,

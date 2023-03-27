@@ -19,7 +19,7 @@
       }
 
       describe('Try3', async (assert) => {
-        const { assertReturn, assertError, assertCode } = createUtils(
+        const { assertReturn, assertError, assertCode, assertAsyncReturn } = createUtils(
           environment,
           assert,
         );
@@ -38,6 +38,8 @@
         assertReturn('1+2', 3);
         assertReturn('hello := "world"; hello', 'world');
         assertReturn('inc := method(x, x + 1); inc(2)', 3);
+
+        await assertAsyncReturn('Time @timeout(10, 3) + 2', 5);
       });
     </script>
     <script type="module" src="./test/tutorial.mjs"></script>

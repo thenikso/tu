@@ -146,6 +146,22 @@ export function environment(options) {
         }
       }),
     },
+    '@': {
+      enumerable: true,
+      value: asMethod(function Receiver_at() {
+        const body = arguments[0];
+        if (!body) {
+          throw new Error('missing argument');
+        }
+        const self = this.self;
+        return future(
+          new Promise(async (resolve) => {
+            const result = await body.doInContext(self);
+            resolve(result);
+          }),
+        );
+      }),
+    },
   });
 
   const OperatorTable = createReceiver('OperatorTable', Receiver, {
@@ -267,6 +283,14 @@ export function environment(options) {
     return obj;
   }
 
+  const Future = createReceiver('Future', Receiver, FutureDescriptors);
+
+  function future(promise) {
+    const obj = Future.clone();
+    obj.promise = promise;
+    return obj;
+  }
+
   const Core = createReceiver('Core', Receiver, {
     Object: {
       enumerable: true,
@@ -303,6 +327,16 @@ export function environment(options) {
     Exception: {
       enumerable: true,
       value: Exception,
+    },
+    Message: {
+      enumerable: true,
+      get() {
+        return Message;
+      },
+    },
+    Time: {
+      enumerable: true,
+      value: createReceiver('Time', Receiver, TimeDescriptors),
     },
   });
 
@@ -415,6 +449,8 @@ export function environment(options) {
       let result = msg.doInContext(env.Lobby);
       if (result instanceof List) {
         result = result.jsArray;
+      } else if (result instanceof Future) {
+        result = result.promise;
       }
       return result;
     },
@@ -789,6 +825,7 @@ const ReceiverDescriptors = {
   '': {
     enumerable: false,
     get() {
+      // TODO this should be `evalArgs`?
       return this;
     },
   },
@@ -1314,6 +1351,29 @@ const ExceptionDescriptors = {
   },
 };
 
+const TimeDescriptors = {
+  timeout: {
+    enumerable: true,
+    value: asMethod('delay', function Time_timeout(delay) {
+      if (typeof delay !== 'number' || delay < 0) {
+        throw new Error(
+          `argument 0 to method 'timeout' must be a positive Number.`,
+        );
+      }
+      const body = arguments[1];
+      const sender = this.call.sender;
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (body) {
+            resolve(body.doInContext(sender));
+          }
+          resolve(null);
+        }, delay);
+      });
+    }),
+  },
+};
+
 const MessageDescriptors = {
   last: {
     enumerable: true,
@@ -1364,6 +1424,20 @@ const MessageDescriptors = {
     value: function Message_argAt(index) {
       return this.arguments[index] ?? null;
     },
+  },
+};
+
+const FutureDescriptors = {
+  forward: {
+    enumerable: true,
+    value: asMethod(function Future_forward() {
+      const msg = this.call.message;
+      const sender = this.call.sender;
+      this.self.promise = this.self.promise.then((value) => {
+        return msg.doInContext(value, sender);
+      });
+      return this.self;
+    }),
   },
 };
 
@@ -1721,7 +1795,7 @@ semantics.addOperation('toMessage(env, assigns, infixes)', {
       } else {
         // Check for infix macros
         const infixPriority = infixes.priorities[symbolString];
-        if (infixPriority) {
+        if (typeof infixPriority !== 'undefined') {
           infixes.messagesByPriority[infixPriority] ??= [];
           infixes.messagesByPriority[infixPriority].push(literalOrSymbolMsg);
         }
