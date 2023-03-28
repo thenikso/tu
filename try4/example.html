@@ -51,36 +51,55 @@
         Account show;
       `);
 
-      environment().eval(`
-      Address := Object clone do(
-        fields ::= list("name", "street", "city", "state", "zipCode");
-
-        init := method(
-          fields foreach(key,
-            if (self hasSlot(key) not,
-              self newSlot(key, nil)
-            )
-          )
+      console.log(
+        environment().compile(`
+        Account := Object clone do(
+          balance := 0.0;
+          deposit := method(v,  balance = balance + v);
+          show := method(write("Account balance: $", balance, "\n"));
         );
 
-        emptyFields := method(
-          fields select(k, self getSlot(k) == nil)
-        );
+        "Inital: " print;
+        Account show;
 
-        isValid := method(errors size == 0);
+        "Depositing $10\n" print;
+        Account deposit(10.0);
 
-        assertValid := method(
-          if (emptyFields size,
-            Exception raise(
-              self type .. " missing: " .. emptyFields join(", ")
-            )
-          )
-        );
+        "Final: " print;
+        Account show;
+      `),
       );
 
-      anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+      // environment().eval(`
+      // Address := Object clone do(
+      //   fields ::= list("name", "street", "city", "state", "zipCode");
 
-      anAddress assertValid`);
+      //   init := method(
+      //     fields foreach(key,
+      //       if (self hasSlot(key) not,
+      //         self newSlot(key, nil)
+      //       )
+      //     )
+      //   );
+
+      //   emptyFields := method(
+      //     fields select(k, self getSlot(k) == nil)
+      //   );
+
+      //   isValid := method(errors size == 0);
+
+      //   assertValid := method(
+      //     if (emptyFields size,
+      //       Exception raise(
+      //         self type .. " missing: " .. emptyFields join(", ")
+      //       )
+      //     )
+      //   );
+      // );
+
+      // anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+
+      // anAddress assertValid`);
     </script>
   </body>
 </html>

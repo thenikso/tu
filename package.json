@@ -1,0 +1,28 @@
+{
+  "name": "tu",
+  "version": "0.0.4",
+  "description": "An implementation of the Io programming language in Javascript",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thenikso/io.js.git"
+  },
+  "keywords": [
+    "io",
+    "tu",
+    "lang",
+    "language"
+  ],
+  "author": "Nicola Peduzzi <thenikso@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/thenikso/io.js/issues"
+  },
+  "homepage": "https://github.com/thenikso/io.js#readme",
+  "devDependencies": {
+    "recast": "^0.22.0"
+  }
+}

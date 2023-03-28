@@ -1,4 +1,5 @@
 import ohm from '../vendor/ohm.mjs';
+import recast from '../vendor/recast.mjs';
 
 const MessageTerminatorSymbol = Symbol('MessageTerminator');
 const MethodArgsSymbol = Symbol('MethodArgs');
@@ -255,6 +256,12 @@ export function environment() {
     doInContext: {
       value: function (context, locals) {
         return doMessage(env, this, context, locals);
+      },
+    },
+    asJavascript: {
+      value: function Message_asJavascript() {
+        const ast = compileMessage(env, this);
+        return recast.prettyPrint(ast, { tabWidth: 2 }).code;
       },
     },
   });
@@ -529,6 +536,11 @@ export function environment() {
       const result = msg.doInContext(Lobby);
       return result;
     },
+    compile(code) {
+      const msg = env.parse(code);
+      const result = msg.asJavascript();
+      return result;
+    },
   };
 
   return env;
@@ -710,6 +722,18 @@ function doMessage(env, firstMsg, context, locals) {
 
 function returnNull() {
   return null;
+}
+
+//
+// Compile
+//
+
+/** @type {import("recast").types.builders} */
+const builders = recast.types.builders;
+
+// TODO !!!!!!!!!
+function compileMessage(env, msg) {
+  return builders.identifier(msg.name);
 }
 
 //
