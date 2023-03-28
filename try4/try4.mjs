@@ -1,15 +1,24 @@
 import ohm from '../vendor/ohm.mjs';
 import recast from '../vendor/recast.mjs';
 
+window.recast = recast;
+
 const MessageTerminatorSymbol = Symbol('MessageTerminator');
 const MethodArgsSymbol = Symbol('MethodArgs');
+const MethodCompilerSymbol = Symbol('MethodCompiler');
 const JsValueSymbol = Symbol('JsValue');
 
-function method(args, fn) {
-  const m = typeof fn === 'function' ? fn : args;
-  const a = typeof fn === 'function' ? args : [];
-  m[MethodArgsSymbol] = a;
-  return m;
+function method(fn, args, compilerFn) {
+  fn[MethodArgsSymbol] = args ?? [];
+  if (compilerFn) {
+    withCompile(fn, compilerFn);
+  }
+  return fn;
+}
+
+function withCompile(fn, compilerFn) {
+  fn[MethodCompilerSymbol] = compilerFn;
+  return fn;
 }
 
 export function environment() {
@@ -30,17 +39,25 @@ export function environment() {
       },
     },
     clone: {
-      value: function () {
-        const obj = Object.create(this);
-        obj.init?.();
-        return obj;
-      },
+      value: method(
+        function () {
+          const obj = Object.create(this);
+          obj.init?.();
+          return obj;
+        },
+        [],
+        Receiver_clone_compile,
+      ),
     },
     do: {
-      value: method(function (fn) {
-        fn.call(this.self);
-        return this.self;
-      }),
+      value: method(
+        function (fn) {
+          fn.call(this.self);
+          return this.self;
+        },
+        [],
+        Receiver_do_compile,
+      ),
     },
     print: {
       value: function () {
@@ -74,19 +91,27 @@ export function environment() {
       },
     },
     setSlot: {
-      value: function (slotNameString, slotValue) {
-        this.self[slotNameString] = slotValue ?? null;
-        return slotValue;
-      },
+      value: method(
+        function (slotNameString, slotValue) {
+          this.self[slotNameString] = slotValue ?? null;
+          return slotValue;
+        },
+        ['slotNameString', 'slotValue'],
+        Receiver_setSlot_compile,
+      ),
     },
     updateSlot: {
-      value: function (slotNameString, slotValue) {
-        if (!(slotNameString in this.self)) {
-          throw new Error(`Slot ${slotNameString} does not exist`);
-        }
-        this.self[slotNameString] = slotValue ?? null;
-        return this.self;
-      },
+      value: method(
+        function (slotNameString, slotValue) {
+          if (!(slotNameString in this.self)) {
+            throw new Error(`Slot ${slotNameString} does not exist`);
+          }
+          this.self[slotNameString] = slotValue ?? null;
+          return this.self;
+        },
+        ['slotNameString', 'slotValue'],
+        Receiver_setSlot_compile,
+      ),
     },
     newSlot: {
       value: function (slotNameString, slotValue) {
@@ -105,23 +130,27 @@ export function environment() {
       },
     },
     method: {
-      value: method(function (...args) {
-        const fn = args.pop();
-        const argNames = this.call.message.arguments
-          ?.slice(0, args.length)
-          .map((msg, i) => {
-            if (
-              msg.isLiteral ||
-              msg.isTerminal ||
-              !(msg.next?.isTerminal ?? true)
-            ) {
-              throw new Error(`Expected symbol for argument ${i}`);
-            }
-            return msg.name;
-          });
-        const m = method(argNames, fn);
-        return m;
-      }),
+      value: method(
+        function (...args) {
+          const fn = args.pop();
+          const argNames = this.call.message.arguments
+            ?.slice(0, args.length)
+            .map((msg, i) => {
+              if (
+                msg.isLiteral ||
+                msg.isTerminal ||
+                !(msg.next?.isTerminal ?? true)
+              ) {
+                throw new Error(`Expected symbol for argument ${i}`);
+              }
+              return msg.name;
+            });
+          const m = method(fn, argNames);
+          return m;
+        },
+        [],
+        Receiver_method_compile,
+      ),
     },
     list: {
       value: function (...items) {
@@ -153,12 +182,16 @@ export function environment() {
       },
     },
     '+': {
-      value: method(['other'], function (other) {
-        if (typeof other !== 'number') {
-          throw new Error(`Expected number`);
-        }
-        return this.num(this[JsValueSymbol] + other);
-      }),
+      value: method(
+        function (other) {
+          if (typeof other !== 'number') {
+            throw new Error(`Expected number`);
+          }
+          return this.num(this[JsValueSymbol] + other);
+        },
+        ['other'],
+        Num_add_compile,
+      ),
     },
   });
 
@@ -261,7 +294,25 @@ export function environment() {
     asJavascript: {
       value: function Message_asJavascript() {
         const ast = compileMessage(env, this);
-        return recast.prettyPrint(ast, { tabWidth: 2 }).code;
+        const prog = builders.program([
+          builders.expressionStatement(
+            builders.callExpression(
+              builders.memberExpression(
+                builders.identifier('environment'),
+                builders.identifier('run'),
+              ),
+              [
+                builders.functionExpression(
+                  null,
+                  [],
+                  builders.blockStatement(ast.lines),
+                ),
+              ],
+            ),
+          ),
+        ]);
+        const code = recast.prettyPrint(prog, { tabWidth: 2 }).code;
+        return code;
       },
     },
   });
@@ -513,7 +564,13 @@ export function environment() {
     },
   });
 
-  const Lobby = Object.create(Core);
+  const Lobby = Object.create(Core, {
+    Lobby: {
+      get() {
+        return Lobby;
+      },
+    },
+  });
 
   const env = {
     Lobby,
@@ -538,7 +595,13 @@ export function environment() {
     },
     compile(code) {
       const msg = env.parse(code);
-      const result = msg.asJavascript();
+      const result = msg.asJavascript(Lobby);
+      return result;
+    },
+    compileAndRun(code) {
+      const jsCode = env.compile(code);
+      const jsFun = new Function('environment', jsCode);
+      const result = jsFun(env);
       return result;
     },
   };
@@ -731,9 +794,242 @@ function returnNull() {
 /** @type {import("recast").types.builders} */
 const builders = recast.types.builders;
 
-// TODO !!!!!!!!!
-function compileMessage(env, msg) {
-  return builders.identifier(msg.name);
+// It compiles!!!!!!!!!
+function compileMessage(env, firstMsg, context, locals, accessorExp) {
+  let msg = firstMsg;
+
+  const lines = [];
+  const rootAccessorExp = accessorExp ?? builders.thisExpression();
+  const rootContext = context ?? Object.create(env.Lobby);
+
+  let currentExp = rootAccessorExp;
+  let currentContext = rootContext;
+  let currentContextLiteral = null;
+
+  do {
+    if (msg.isTerminal) {
+      lines.push(builders.expressionStatement(currentExp));
+      currentExp = rootAccessorExp;
+      currentContext = rootContext;
+      msg = msg.next;
+      continue;
+    }
+
+    currentContextLiteral = null;
+    if (msg.isLiteral) {
+      switch (typeof msg.name) {
+        case 'string':
+          currentContext = env.Lobby.Str;
+          currentExp = compile_thisLobbyXcall('str', [
+            builders.literal(msg.name),
+          ]);
+          currentContextLiteral = currentExp;
+          break;
+        case 'number':
+          currentContext = env.Lobby.Num;
+          currentExp = compile_thisLobbyXcall('num', [
+            builders.literal(msg.name),
+          ]);
+          currentContextLiteral = currentExp;
+          break;
+        case 'boolean':
+          currentContext = env.Lobby.Bool;
+          currentExp = compile_thisLobbyXcall('bool', [
+            builders.literal(msg.name),
+          ]);
+          currentContextLiteral = currentExp;
+          break;
+        default:
+          throw new Error('Unknown literal type');
+      }
+      msg = msg.next;
+      continue;
+    }
+
+    const slot = currentContext[msg.name];
+    const slotCompile = slot?.[MethodCompilerSymbol];
+    if (slotCompile) {
+      const compiled = slotCompile(
+        env,
+        msg,
+        currentContext,
+        locals,
+        currentExp,
+      );
+      currentExp = compiled.lines[0].expression;
+      if (compiled.currentContext) {
+        currentContext = compiled.currentContext;
+      }
+    } else {
+      if (locals?.[msg.name]) {
+        // Accessing locals, this is used in methods body with parameters
+        currentExp = builders.identifier(msg.name);
+      } else {
+        // Accessing the current context
+        currentExp = builders.memberExpression(
+          currentExp,
+          builders.identifier(msg.name),
+        );
+      }
+      if (slot) {
+        if (typeof slot === 'function') {
+          const args = msg.arguments?.map((arg) => {
+            const argComp = compileMessage(
+              env,
+              arg,
+              rootContext,
+              locals,
+              rootAccessorExp,
+            );
+            if (argComp.lines.length === 1) {
+              return argComp.lines[0].expression;
+            } else {
+              throw new Error('Not implemented');
+            }
+          });
+          currentExp = builders.callExpression(currentExp, args ?? []);
+        } else {
+          currentContext = slot;
+        }
+      }
+    }
+
+    msg = msg.next;
+  } while (msg);
+
+  if (currentExp !== rootAccessorExp) {
+    if (currentExp === currentContextLiteral) {
+      lines.push(
+        builders.expressionStatement(currentContextLiteral.arguments[0]),
+      );
+      currentContextLiteral = null;
+    } else {
+      lines.push(builders.expressionStatement(currentExp));
+    }
+  } else {
+    lines.push(builders.expressionStatement(builders.nullLiteral()));
+  }
+
+  return { lines, currentContext };
+}
+
+function compile_thisLobbyXcall(x, args) {
+  return builders.callExpression(
+    builders.memberExpression(
+      builders.memberExpression(
+        builders.thisExpression(),
+        builders.identifier('Lobby'),
+      ),
+      builders.identifier(x),
+    ),
+    args,
+  );
+}
+
+function Receiver_setSlot_compile(env, msg, context, locals, accessorExp) {
+  const val = compileMessage(
+    env,
+    msg.arguments[1],
+    context,
+    locals,
+    accessorExp,
+  );
+  const ast = builders.assignmentExpression(
+    '=',
+    builders.memberExpression(
+      accessorExp,
+      builders.identifier(msg.arguments[0].name),
+    ),
+    val.lines[0].expression,
+  );
+  context[msg.arguments[0].name] = val.currentContext;
+  return {
+    lines: [builders.expressionStatement(ast)],
+    currentContext: context,
+  };
+}
+
+function Receiver_clone_compile(env, msg, context, locals, accessorExp) {
+  const ast = builders.callExpression(
+    builders.memberExpression(accessorExp, builders.identifier('clone')),
+    [],
+  );
+  const currentContext = Object.create(context);
+  return {
+    lines: [builders.expressionStatement(ast)],
+    currentContext,
+  };
+}
+
+function Receiver_do_compile(env, msg, context, locals, accessorExp) {
+  const thisSelf = builders.memberExpression(
+    builders.thisExpression(),
+    builders.identifier('self'),
+  );
+  const body = compileMessage(env, msg.arguments[0], context, locals, thisSelf);
+  const bodyLines = body.lines;
+  bodyLines.push(builders.returnStatement(thisSelf));
+  const ast = builders.callExpression(
+    builders.memberExpression(accessorExp, builders.identifier('do')),
+    [builders.functionExpression(null, [], builders.blockStatement(bodyLines))],
+  );
+  return {
+    lines: [builders.expressionStatement(ast)],
+    currentContext: context,
+  };
+}
+
+function Receiver_method_compile(env, msg, context, locals, accessorExp) {
+  const thisSelf = builders.memberExpression(
+    builders.thisExpression(),
+    builders.identifier('self'),
+  );
+  const argNames = msg.arguments.slice(0, -1).map((argMsg) => argMsg.name);
+  // TODO how to set the proper proto to locals?
+  const bodyLocals = Object.create(locals ?? null);
+  for (const argName of argNames) {
+    bodyLocals[argName] = true;
+  }
+  const body = compileMessage(
+    env,
+    msg.arguments[msg.arguments.length - 1],
+    context,
+    bodyLocals,
+    thisSelf,
+  );
+  const bodyLines = body.lines;
+  bodyLines[bodyLines.length - 1] = builders.returnStatement(
+    bodyLines[bodyLines.length - 1].expression,
+  );
+  const fn = builders.functionExpression(
+    null,
+    argNames.map((argName) => builders.identifier(argName)),
+    builders.blockStatement(bodyLines),
+  );
+  return {
+    lines: [builders.expressionStatement(fn)],
+    // TODO how to make something more clever?
+    currentContext: function () {},
+  };
+}
+
+function Num_add_compile(env, msg, context, locals, accessorExp) {
+  const val = compileMessage(
+    env,
+    msg.arguments[0],
+    context,
+    locals,
+    accessorExp,
+  );
+  const ast = builders.binaryExpression(
+    '+',
+    accessorExp,
+    val.lines[0].expression,
+  );
+  return {
+    lines: [builders.expressionStatement(ast)],
+    currentContext: context,
+  };
 }
 
 //
