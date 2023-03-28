@@ -511,7 +511,7 @@ function makeMessage_doInContext(Lobby, Call, Nil, Num, Str, Bool, List) {
         continue;
       }
 
-      slot = null;
+      slot = undefined;
       localsTarget = target;
       if (
         typeof msg.name === 'symbol' &&

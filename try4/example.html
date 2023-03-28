@@ -1,0 +1,86 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Try 4 - IO compiler</title>
+  </head>
+  <body>
+    <script type="module">
+      import { environment } from './try4.mjs';
+
+      environment().run(function () {
+        this.self.Account = this.self.Receiver.clone().do(function () {
+          this.self.balance = 0;
+          this.self.deposit = function (v) {
+            return (this.self.balance = this.self.balance + v);
+          };
+          this.self.show = function () {
+            return this.self.write(
+              'Account balance: $',
+              this.self.balance,
+              '\n',
+            );
+          };
+        });
+
+        this.self.str('Initial: ').print();
+        this.self.Account.show();
+
+        this.self.str('Depositing $10\n').print();
+        this.self.Account.deposit(10.0);
+
+        this.self.str('Final: ').print();
+        this.self.Account.show();
+      });
+
+      environment().eval(`
+        Account := Object clone do(
+          balance := 0.0;
+          deposit := method(v,  balance = balance + v);
+          show := method(write("Account balance: $", balance, "\n"));
+        );
+
+        "Inital: " print;
+        Account show;
+
+        "Depositing $10\n" print;
+        Account deposit(10.0);
+
+        "Final: " print;
+        Account show;
+      `);
+
+      environment().eval(`
+      Address := Object clone do(
+        fields ::= list("name", "street", "city", "state", "zipCode");
+
+        init := method(
+          fields foreach(key,
+            if (self hasSlot(key) not,
+              self newSlot(key, nil)
+            )
+          )
+        );
+
+        emptyFields := method(
+          fields select(k, self getSlot(k) == nil)
+        );
+
+        isValid := method(errors size == 0);
+
+        assertValid := method(
+          if (emptyFields size,
+            Exception raise(
+              self type .. " missing: " .. emptyFields join(", ")
+            )
+          )
+        );
+      );
+
+      anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+
+      anAddress assertValid`);
+    </script>
+  </body>
+</html>
