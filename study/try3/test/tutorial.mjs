@@ -1,5 +1,5 @@
-import '../../vendor/tap-console.mjs';
-import { describe } from '../../vendor/riteway.mjs';
+import '../../../vendor/tap-console.mjs';
+import { describe } from '../../../vendor/riteway.mjs';
 import { createUtils } from './utils.mjs';
 
 import { environment } from '../try3.mjs';

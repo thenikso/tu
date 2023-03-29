@@ -1,4 +1,4 @@
-import ohm from '../vendor/ohm.mjs';
+import ohm from '../../vendor/ohm.mjs';
 
 //
 // API
