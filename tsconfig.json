@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "outDir": "dist",
+    "target": "ES2017",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "suppressImplicitAnyIndexErrors": true,
+    "lib": ["esnext", "DOM", "DOM.Iterable"],
+    "ignoreDeprecations": "5.0"
+  },
+  "files": ["index.mjs", "index.d.ts"],
+  "exclude": ["../node_modules/**"]
+}

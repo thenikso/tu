@@ -2,7 +2,10 @@
   "name": "tu",
   "version": "0.0.4",
   "description": "An implementation of the Io programming language in Javascript",
-  "main": "index.js",
+  "main": "dist/tu.cjs",
+  "module": "index.mjs",
+  "types": "index.d.ts",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
