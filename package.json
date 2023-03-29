@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/thenikso/io.js#readme",
   "devDependencies": {
-    "recast": "^0.22.0"
+    "recast": "^0.22.0",
+    "ohm": "^0.10.4"
   }
 }

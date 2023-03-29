@@ -863,6 +863,13 @@ function compileMessage(env, firstMsg, context, locals, accessorExp) {
     } else {
       if (locals?.[msg.name]) {
         // Accessing locals, this is used in methods body with parameters
+        // TODO we will need a second pass to resolve the local's type
+        // and know how to compile messages passed to it
+        // 1. when the local is found we store the message, position in
+        //    the ast and the prototype the the calling method
+        // 2. when the method is called for the first time we inform
+        //    the compiler about the local's type inferred from the
+        //    invocation parameters
         currentExp = builders.identifier(msg.name);
       } else {
         // Accessing the current context
