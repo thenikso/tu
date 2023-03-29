@@ -7,7 +7,7 @@
   "types": "index.d.ts",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest",
     "build": "vite build",
     "prepublish": "pnpm run build"
   },
@@ -41,6 +41,7 @@
     "ohm-js": "^17.0.4",
     "recast": "^0.22.0",
     "typescript": "^5.0.2",
-    "vite": "^4.2.1"
+    "vite": "^4.2.1",
+    "vitest": "^0.29.8"
   }
 }
