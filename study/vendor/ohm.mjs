@@ -8,7 +8,7 @@ const exp = (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){va
 		exports["ohm"] = factory();
 	else
 		root["ohm"] = factory();
-})(window, function() {
+})(globalThis, function() {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
@@ -1401,7 +1401,7 @@ InputStream.prototype = {
               Case-insensitive comparison is a tricky business. Some notable gotchas include the
               "Turkish I" problem (http://www.i18nguy.com/unicode/turkish-i18n.html) and the fact
               that the German Esszet (ß) turns into "SS" in upper case.
-      
+
               This is intended to be a locale-invariant comparison, which means it may not obey
               locale-specific expectations (e.g. "i" => "İ").
              */

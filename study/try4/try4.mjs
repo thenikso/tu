@@ -1,7 +1,7 @@
 import ohm from '../vendor/ohm.mjs';
 import recast from '../vendor/recast.mjs';
 
-window.recast = recast;
+globalThis.recast = recast;
 
 const MessageTerminatorSymbol = Symbol('MessageTerminator');
 const MethodArgsSymbol = Symbol('MethodArgs');
