@@ -7,7 +7,19 @@
   "types": "index.d.ts",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "vite build",
+    "prepublish": "pnpm run build"
+  },
+  "exports": {
+    ".": [
+      {
+        "import": "./index.mjs",
+        "require": "./dist/tu.cjs",
+        "types": "./index.d.ts"
+      },
+      "./dist/tu.cjs"
+    ]
   },
   "repository": {
     "type": "git",
@@ -26,8 +38,9 @@
   },
   "homepage": "https://github.com/thenikso/io.js#readme",
   "devDependencies": {
-    "ohm": "^0.10.4",
+    "ohm-js": "^17.0.4",
     "recast": "^0.22.0",
-    "typescript": "^5.0.2"
+    "typescript": "^5.0.2",
+    "vite": "^4.2.1"
   }
 }

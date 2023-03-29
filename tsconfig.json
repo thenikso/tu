@@ -8,6 +8,5 @@
     "lib": ["esnext", "DOM", "DOM.Iterable"],
     "ignoreDeprecations": "5.0"
   },
-  "files": ["index.mjs", "index.d.ts"],
   "exclude": ["../node_modules/**"]
 }

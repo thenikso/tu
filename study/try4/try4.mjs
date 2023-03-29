@@ -1,5 +1,7 @@
-import ohm from '../../vendor/ohm.mjs';
-import recast from '../../vendor/recast.mjs';
+// import ohm from '../../vendor/ohm.mjs';
+// import recast from '../../vendor/recast.mjs';
+import * as ohm from '../../dist/ohm.js';
+import recast from '../../dist/recast.js';
 
 globalThis.recast = recast;
 
