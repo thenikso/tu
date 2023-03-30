@@ -4,21 +4,35 @@ import { describe } from './runner/index.mjs';
 import { createRootReceiver, createReceiver } from '../lib/receiver.js';
 
 describe('receiver', async (assert) => {
+  const root = createRootReceiver();
+
+  assert({
+    given: 'a receiver type',
+    should: 'be "Receiver"',
+    actual: root.type,
+    expected: 'Receiver',
+  });
+
+  assert({
+    given: 'a receiver self',
+    should: 'be the receiver itself',
+    actual: root.self,
+    expected: root,
+  });
+
   assert({
     given: 'a root receiver',
     should: 'have a null prototype',
-    actual: Object.getPrototypeOf(createRootReceiver()),
+    actual: Object.getPrototypeOf(root),
     expected: null,
   });
 
   assert({
     given: 'a root receiver',
     should: 'have an empty protos array',
-    actual: createRootReceiver().protos,
+    actual: root.protos,
     expected: [],
   });
-
-  const root = createRootReceiver();
 
   assert({
     given: 'a new receiver',
