@@ -6,6 +6,9 @@ export type Receiver<T = {}> = {
   hasProto: (proto: Receiver) => boolean;
   appendProto: (proto: Receiver) => Receiver<T>;
   prependProto: (proto: Receiver) => Receiver<T>;
+  clone: () => Receiver<T>;
+  setSlot: <V = any>(name: string, value: V) => V;
+  newSlot: <V = any>(name: string, value: V) => Receiver<T>;
 } & T;
 
 export type ReceiverOwnProps<R> = R extends Receiver<infer P> ? P : never;
