@@ -71,5 +71,19 @@ describe('receiver protos', async (assert) => {
       actual: [obj.prop1, obj.prop2, obj.prop3, obj.prop3bis, obj.prop4],
       expected: [1, 2, 1, 3, 4],
     });
+
+    const obj2 = createReceiver(proto2_1, {
+      prop4: { value: 4 },
+    });
+
+    assert({
+      given: 'a receiver appendProto',
+      should: 'append the new prototype to the chain',
+      actual: (() => {
+        obj2.appendProto(proto2_2);
+        return [obj2.prop1, obj2.prop2, obj2.prop3, obj2.prop3bis, obj2.prop4];
+      })(),
+      expected: [1, 2, 1, 3, 4],
+    });
   }
 });
