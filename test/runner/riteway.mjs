@@ -36,7 +36,7 @@ const withTape =
 
 /**
  * The testing library: a thin wrapper around tape
- * @type {(suite: string, tests: (testFunction: TestFunction) => void) => void} param0
+ * @type {(suite: string, tests: (testFunction: TestFunction) => Promise<void>) => void} param0
  */
 const describe = Object.assign(withTape(tape), {
   only: withTape(tape.only),
