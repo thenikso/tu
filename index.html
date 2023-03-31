@@ -5,5 +5,11 @@
   <body>
     Check console for test results
     <script type="module" src="./test/index.js"></script>
+    <script type="module">
+      import { createEnvironment } from './index.mjs';
+
+      const env = createEnvironment();
+      globalThis.Lobby = env.Lobby;
+    </script>
   </body>
 </html>
