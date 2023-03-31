@@ -552,6 +552,9 @@ export function environment() {
     Call: {
       value: Call,
     },
+    Nil: {
+      value: Nil,
+    },
     Str: {
       value: Str,
     },

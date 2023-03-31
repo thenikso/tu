@@ -1,20 +1,35 @@
-export type Method = (...args: any[]) => any;
-
-export type Receiver<T = {}> = {
+export type Receiver<
+  Protos extends any[] = [],
+  Props extends Record<string, any> = {},
+> = {
   type: string;
-  self: Receiver<T>;
-  Receiver: Receiver;
-  proto: Receiver;
-  protos: Receiver[];
+  self: Receiver<Protos, Props>;
+  proto: Protos[0];
+  protos: Protos;
   hasProto: (proto: Receiver) => boolean;
-  appendProto: (proto: Receiver) => Receiver<T>;
-  prependProto: (proto: Receiver) => Receiver<T>;
-  clone: () => Receiver<T>;
+  appendProto: (proto: Receiver) => Receiver<Protos, Props>;
+  prependProto: (proto: Receiver) => Receiver<Protos, Props>;
+  clone: () => Receiver<[Receiver<Protos, Props>], {}>;
   setSlot: <V = any>(name: string, value: V) => V;
   updateSlot: <V = any>(name: string, value: V) => V;
-  newSlot: <V = any>(name: string, value: V) => Receiver<T>;
+  newSlot: <N extends string, V = any>(
+    name: N,
+    value: V,
+  ) => Receiver<Protos, Props & { [key in N]: V }>;
   method: (...args: any[]) => Method;
-} & T;
+} & ExtendProtos<Protos> &
+  Props;
+
+type RecOwnProps<R> = R extends Receiver<any, infer P> ? P : never;
+type ExtendProtos<Protos extends Receiver<any, any>[]> = Protos extends [
+  infer Head,
+  ...infer Tail,
+]
+  ? (Head extends Receiver<infer HeadProtos, infer HeadProps>
+      ? HeadProps & ExtendProtos<HeadProtos>
+      : {}) &
+      ExtendProtos<Tail>
+  : {};
 
 export type Message = {
   name: string;
@@ -25,11 +40,13 @@ export type Message = {
   previous: Message | null;
 };
 
-export type Call<T> = {
+export type Method = (...args: any[]) => any;
+
+export type Call<T extends Receiver, S extends Receiver> = {
   /**
    * current receiver
    */
-  target: Receiver<T>;
+  target: T;
   /**
    * the activated method/block
    */
@@ -41,40 +58,51 @@ export type Call<T> = {
   /**
    * locals object of caller
    */
-  sender: Locals<any> | Receiver<any>;
+  sender: Locals<S, any> | S;
 };
 
-export type Locals<T = {}, L extends Record<string, any> = {}> = {
-  self: Receiver<T>;
-  call: Call<T>;
+export type Locals<
+  T extends Receiver,
+  S extends Receiver,
+  L extends Record<string, any> = {},
+> = {
+  self: T;
+  call: Call<T, S>;
 } & L;
 
-export type ReceiverOwnProps<R> = R extends Receiver<infer P> ? P : never;
+type PropertyDescriptor<T> =
+  | {
+      configurable?: boolean;
+      enumerable?: boolean;
+      value: T;
+      writable?: boolean;
+    }
+  | {
+      configurable?: boolean;
+      enumerable?: boolean;
+      get(): T;
+      set?(v: T): void;
+    };
 
-// type PropertyDescriptor<T> =
-//   | {
-//       configurable?: boolean;
-//       enumerable?: boolean;
-//       value: T;
-//       writable?: boolean;
-//     }
-//   | {
-//       configurable?: boolean;
-//       enumerable?: boolean;
-//       get(): T;
-//       set?(v: T): void;
-//     };
+type PropertyDescriptorMap<TS extends Record<string, any>> = {
+  [K in keyof TS]: PropertyDescriptor<TS[K]>;
+};
 
-// type PropertyDescriptorMap<TS extends Record<string, any>> = {
-//   [K in keyof TS]: PropertyDescriptor<TS[K]>;
-// };
+type createReceiver = <
+  P extends Receiver<any, any>[],
+  T extends Record<string, any>,
+>(
+  protos: P,
+  descriptors?: PropertyDescriptorMap<T> | {},
+) => Receiver<P, T>;
 
-// type createReceiver = <
-//   T extends Record<string, any>,
-//   P extends Receiver<any>[],
-// >(
-//   proto: P,
-//   descriptors?: PropertyDescriptorMap<T> | {},
-// ) => Receiver<T>;
+//
+// Environment
+//
+
+export type EnvironmentPlugin = {
+  install: <R extends Receiver>(Lobby: R | null, options?: any) => R;
+  secure: (Lobby: Receiver, options?: any) => void;
+};
 
 export type Environment = {};
