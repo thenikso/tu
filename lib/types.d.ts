@@ -42,7 +42,7 @@ export type Message = {
   setNext: (message: Message | null) => Message;
   previous: Message | null;
   setPrevious: (message: Message | null) => Message;
-};
+} & Receiver;
 
 export type Method = (...args: any[]) => any;
 

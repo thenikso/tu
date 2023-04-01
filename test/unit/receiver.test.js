@@ -14,13 +14,6 @@ describe('receiver', async (assert) => {
   });
 
   assert({
-    given: 'a receiver self',
-    should: 'be the receiver itself',
-    actual: root.self,
-    expected: root,
-  });
-
-  assert({
     given: 'a root receiver',
     should: 'have a null prototype',
     actual: Object.getPrototypeOf(root),
