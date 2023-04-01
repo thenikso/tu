@@ -1,7 +1,7 @@
 // @ts-check
 
-import { describe } from './runner/index.mjs';
-import { createRootReceiver, createReceiver } from '../lib/receiver.js';
+import { describe } from '../runner/index.mjs';
+import { createRootReceiver, createReceiver } from '../../lib/receiver.js';
 
 describe('receiver', async (assert) => {
   const root = createRootReceiver();

@@ -1,1 +1,3 @@
-import './receiver.test.js';
+import './unit/receiver.test.js';
+
+import './tutorial.test.js';

@@ -33,16 +33,20 @@ type ExtendProtos<Protos extends Receiver<any, any>[]> = Protos extends [
 
 export type Message = {
   name: string;
+  setName: (name: string) => Message;
   arguments: Message[];
+  setArguments: (args: Message[]) => Message;
   isLiteral: boolean;
-  isTerminal: boolean;
+  isTerminator: boolean;
   next: Message | null;
+  setNext: (message: Message | null) => Message;
   previous: Message | null;
+  setPrevious: (message: Message | null) => Message;
 };
 
 export type Method = (...args: any[]) => any;
 
-export type Call<T extends Receiver, S extends Receiver> = {
+export type Call<T extends Receiver> = {
   /**
    * current receiver
    */
@@ -58,16 +62,15 @@ export type Call<T extends Receiver, S extends Receiver> = {
   /**
    * locals object of caller
    */
-  sender: Locals<S, any> | S;
+  // sender: Locals<S, any> | S;
 };
 
 export type Locals<
-  T extends Receiver,
-  S extends Receiver,
+  T extends Receiver = Receiver,
   L extends Record<string, any> = {},
 > = {
   self: T;
-  call: Call<T, S>;
+  call: Call<T>;
 } & L;
 
 type PropertyDescriptor<T> =
@@ -89,20 +92,20 @@ type PropertyDescriptorMap<TS extends Record<string, any>> = {
 };
 
 type createReceiver = <
-  P extends Receiver<any, any>[],
+  P extends Receiver[] | Receiver,
   T extends Record<string, any>,
 >(
   protos: P,
   descriptors?: PropertyDescriptorMap<T> | {},
-) => Receiver<P, T>;
+) => Receiver<P extends Receiver[] ? P : [P], T>;
 
 //
 // Environment
 //
 
-export type EnvironmentPlugin = {
-  install: <R extends Receiver>(Lobby: R | null, options?: any) => R;
-  secure: (Lobby: Receiver, options?: any) => void;
+export type EnvironmentPlugin<R extends Receiver = any> = {
+  install: (Lobby: R, options?: any) => R;
+  secure?: (Lobby: R, options?: any) => void;
 };
 
 export type Environment = {};
