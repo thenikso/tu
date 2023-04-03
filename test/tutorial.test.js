@@ -150,9 +150,9 @@ describe('Tutorial: Objects', async (assert) => {
   const { withEnv, assertReturn } = envTestUtils(createEnvironment, assert);
 
   withEnv(() => {
-    assertReturn('Contact := Object clone', {});
+    assertReturn('Contact := Receiver clone', {});
     assertReturn('Contact type', 'Contact');
-    assertReturn('Contact proto type', 'Object');
+    assertReturn('Contact proto type', 'Receiver');
     assertReturn('Contact name ::= nil', null);
     assertReturn('Contact address ::= nil', null);
     assertReturn('Contact city ::= nil', null);
@@ -171,7 +171,7 @@ describe('Tutorial: Objects', async (assert) => {
       'Holmes\n221B Baker St\nLondon',
     );
     assertReturn(
-      'holmes getSlot("fullAddress") asString',
+      'holmes getSlot("fullAddress") toString',
       String.raw`method(list(name, address, city) join("\n"))`,
     );
   });
@@ -179,7 +179,7 @@ describe('Tutorial: Objects', async (assert) => {
   withEnv(() => {
     assertReturn(
       `
-    Contact := Object clone do(
+    Contact := Receiver clone do(
       name ::= nil;
       address ::= nil;
       city ::= nil;
@@ -225,7 +225,7 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
     `
     assert := method(
       call sender doMessage(call message argAt(0)) ifFalse(
-        Exception raise("failed assertion: " .. call message asString)
+        Exception raise("failed assertion: " .. call message toString)
       )
     );
 
@@ -235,15 +235,15 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
 });
 
 describe('Tutorial: Introspection', async (assert) => {
-  const { withEnv, assertError, assertLogs } = envTestUtils(
+  const { withEnv, assertError, assertLogs, assertReturn } = envTestUtils(
     createEnvironment,
     assert,
   );
 
   withEnv(() => {
-    assertError(
+    assertReturn(
       `
-      Address := Object clone do(
+      Address := Receiver clone do(
         fields ::= list("name", "street", "city", "state", "zipCode");
 
         init := method(
