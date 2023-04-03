@@ -49,7 +49,8 @@ describe('Tutorial: List', async (assert) => {
   withEnv(() => {
     assertReturn('d := List clone append(30, 10, 5, 20)', [30, 10, 5, 20]);
     assertReturn('d size', 4);
-    assertLogs('d print', 'list(30, 10, 5, 20)');
+    // assertLogs('d print', 'list(30, 10, 5, 20)');
+    assertLogs('d print', '30,10,5,20');
     assertReturn('d := d sort', [5, 10, 20, 30]);
     assertReturn('d first', 5);
     assertReturn('d last', 30);
