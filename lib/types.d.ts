@@ -17,6 +17,7 @@ export type Receiver<
     value: V,
   ) => Receiver<Protos, Props & { [key in N]: V }>;
   method: (...args: any[]) => Method;
+  toString: () => string;
 } & ExtendProtos<Protos> &
   Props;
 
@@ -42,6 +43,7 @@ export type Message = {
   setNext: (message: Message | null) => Message;
   previous: Message | null;
   setPrevious: (message: Message | null) => Message;
+  doInContext: <T extends Receiver>(context: T, locals?: Locals<any, T>) => any;
 } & Receiver;
 
 export type Method = (...args: any[]) => any;
@@ -63,11 +65,16 @@ export type Call<T extends Receiver> = {
    * locals object of caller
    */
   // sender: Locals<S, any> | S;
+  sender: any;
+  /**
+   * Evaluate the argument at the given index in the sender's context.
+   */
+  evalArgAt: (index: number) => any;
 };
 
 export type Locals<
-  T extends Receiver = Receiver,
   L extends Record<string, any> = {},
+  T extends Receiver = Receiver,
 > = {
   self: T;
   call: Call<T>;

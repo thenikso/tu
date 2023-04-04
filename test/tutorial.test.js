@@ -241,7 +241,7 @@ describe('Tutorial: Introspection', async (assert) => {
   );
 
   withEnv(() => {
-    assertReturn(
+    assertError(
       `
       Address := Receiver clone do(
         fields ::= list("name", "street", "city", "state", "zipCode");

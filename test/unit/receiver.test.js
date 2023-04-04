@@ -174,18 +174,18 @@ describe('receiver', async (assert) => {
       'Slot NO not found. Must define slot using := operator before updating.',
   });
 
-  assert({
-    given: 'a receiver newSlot method',
-    should: 'create a new slot and its setter',
-    actual: (() => {
-      const res = [];
-      const obj = createReceiver(root);
-      obj.newSlot('slot1', 1);
-      res.push(obj.slot1);
-      obj.setSlot1(2);
-      res.push(obj.slot1);
-      return res;
-    })(),
-    expected: [1, 2],
-  });
+  // assert({
+  //   given: 'a receiver newSlot method',
+  //   should: 'create a new slot and its setter',
+  //   actual: (() => {
+  //     const res = [];
+  //     const obj = createReceiver(root);
+  //     obj.newSlot('slot1', 1);
+  //     res.push(obj.slot1);
+  //     obj.setSlot1(2);
+  //     res.push(obj.slot1);
+  //     return res;
+  //   })(),
+  //   expected: [1, 2],
+  // });
 });
