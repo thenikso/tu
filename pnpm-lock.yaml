@@ -1,10 +1,14 @@
 lockfileVersion: 5.4
 
 specifiers:
+  chalk: ^5.2.0
   ohm-js: ^17.0.4
   recast: ^0.22.0
   typescript: ^5.0.2
   vite: ^4.2.1
+
+dependencies:
+  chalk: 5.2.0
 
 devDependencies:
   ohm-js: 17.0.4
@@ -239,6 +243,11 @@ packages:
       function-bind: 1.1.1
       get-intrinsic: 1.2.0
     dev: true
+
+  /chalk/5.2.0:
+    resolution: {integrity: sha512-ree3Gqw/nazQAPuJJEy+avdl7QfZMcUvmHIKgEZkGL+xOBzRvup5Hxo6LHuMceSxOabuJLJm5Yp/92R9eMmMvA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
+    dev: false
 
   /define-properties/1.2.0:
     resolution: {integrity: sha512-xvqAVKGfT1+UAvPwKTVw/njhdQ8ZhXK4lI0bCIuCMrp2up9nPnaDftrLtmpTazqd1o+UY4zgzU+avtMbDP+ldA==}

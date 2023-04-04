@@ -227,7 +227,7 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
       call sender doMessage(call message argAt(0)) ifFalse(
         Exception raise("failed assertion: " .. call message toString)
       )
-    );
+    )
 
     assert(1 == 3)`,
     'failed assertion: assert(1 ==(3))',
