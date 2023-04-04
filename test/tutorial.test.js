@@ -180,10 +180,10 @@ describe('Tutorial: Objects', async (assert) => {
     assertReturn(
       `
     Contact := Receiver clone do(
-      name ::= nil;
-      address ::= nil;
-      city ::= nil;
-      fullAddress := method(list(name, address, city) join("\n"));
+      name ::= nil
+      address ::= nil
+      city ::= nil
+      fullAddress := method(list(name, address, city) join("\n"))
     ); Contact slotNames`,
       [
         'name',
@@ -203,14 +203,14 @@ describe('Tutorial: Objects', async (assert) => {
       fullAddress := method(
         list(companyName, "Care of: " .. name, address, city) join("\n")
       )
-    );
+    )
 
     steve := BusinessContact clone do(
-      setName("Steve");
-      setCompanyName("Apple Inc.");
-      setAddress("1 Infinite Loop");
-      setCity("Cupertino");
-    );
+      setName("Steve")
+      setCompanyName("Apple Inc.")
+      setAddress("1 Infinite Loop")
+      setCity("Cupertino")
+    )
 
     steve fullAddress`,
       'Apple Inc.\nCare of: Steve\n1 Infinite Loop\nCupertino',
@@ -235,7 +235,7 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
 });
 
 describe('Tutorial: Introspection', async (assert) => {
-  const { withEnv, assertError, assertLogs, assertReturn } = envTestUtils(
+  const { withEnv, assertError, assertLogs } = envTestUtils(
     createEnvironment,
     assert,
   );
@@ -252,13 +252,13 @@ describe('Tutorial: Introspection', async (assert) => {
               self newSlot(key, nil)
             )
           )
-        );
+        )
 
         emptyFields := method(
           fields select(k, self getSlot(k) == nil)
-        );
+        )
 
-        isValid := method(errors size == 0);
+        isValid := method(errors size == 0)
 
         assertValid := method(
           if (emptyFields size,
@@ -266,10 +266,10 @@ describe('Tutorial: Introspection', async (assert) => {
               self type .. " missing: " .. emptyFields join(", ")
             )
           )
-        );
-      );
+        )
+      )
 
-      anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln");
+      anAddress := Address clone setName("Alan") setStreet("6502 Mem Ln")
 
       anAddress assertValid`,
       'Address missing: city, state, zipCode',
