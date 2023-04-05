@@ -2,6 +2,17 @@ import { describe, envTestUtils } from './runner/index.mjs';
 
 import { createEnvironment } from '../index.mjs';
 
+describe('Tutorial: Comments', async (assert) => {
+  const { assertCode } = envTestUtils(createEnvironment, assert);
+
+  assertCode(`#!/usr/bin/env tu
+    /**
+     * Multi-line comment
+     */
+    1 + 1 // a line comment
+  `, '1 +(1)');
+});
+
 describe('Tutorial: Math', async (assert) => {
   const { assertReturn } = envTestUtils(createEnvironment, assert);
 
@@ -22,10 +33,7 @@ describe('Tutorial: Variables', async (assert) => {
 });
 
 describe('Tutorial: Conditions', async (assert) => {
-  const { withEnv, assertLogs } = envTestUtils(
-    createEnvironment,
-    assert,
-  );
+  const { withEnv, assertLogs } = envTestUtils(createEnvironment, assert);
 
   withEnv(() => {
     assertLogs(
@@ -66,10 +74,7 @@ describe('Tutorial: List', async (assert) => {
 });
 
 describe('Tutorial: Loops', async (assert) => {
-  const { assertLogs } = envTestUtils(
-    createEnvironment,
-    assert,
-  );
+  const { assertLogs } = envTestUtils(createEnvironment, assert);
 
   assertLogs(
     'for(i, 1, 10, writeln(i))',
