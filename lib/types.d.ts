@@ -38,7 +38,9 @@ export type Message = {
   arguments: Message[];
   setArguments: (args: Message[]) => Message;
   isLiteral: boolean;
-  isTerminator: boolean;
+  isEndOfLine: boolean;
+  characterNumber: number;
+  lineNumber: number;
   next: Message | null;
   setNext: (message: Message | null) => Message;
   previous: Message | null;
