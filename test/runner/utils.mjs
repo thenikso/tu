@@ -15,8 +15,7 @@ export function envTestUtils(createEnvironment, assert) {
   };
   const logEnv = () =>
     createEnv({
-      // TODO new options
-      log(message) {
+      write(message) {
         currentLogs.push(message);
       },
     });

@@ -42,11 +42,11 @@ describe('Tutorial: Conditions', async (assert) => {
     assertLogs(
       `a := 2;
       (a == 1) ifTrue("a is one" println) ifFalse("a is not one" println)`,
-      'a is not one',
+      'a is not one\n',
     );
     assertLogs(
       'if(a == 1, writeln("a is one"), writeln("a is not one"))',
-      'a is not one',
+      'a is not one\n',
     );
   });
 });
@@ -81,24 +81,29 @@ describe('Tutorial: Loops', async (assert) => {
 
   assertLogs(
     'for(i, 1, 10, writeln(i))',
-    '1',
-    '2',
-    '3',
-    '4',
-    '5',
-    '6',
-    '7',
-    '8',
-    '9',
-    '10',
+    '1\n',
+    '2\n',
+    '3\n',
+    '4\n',
+    '5\n',
+    '6\n',
+    '7\n',
+    '8\n',
+    '9\n',
+    '10\n',
   );
   assertLogs(
     'list(5, 123, 20) foreach(i, v, writeln(i, ": ", v))',
-    '0: 5',
-    '1: 123',
-    '2: 20',
+    '0: 5\n',
+    '1: 123\n',
+    '2: 20\n',
   );
-  assertLogs('list("abc", "def", "ghi") foreach(println)', 'abc', 'def', 'ghi');
+  assertLogs(
+    'list("abc", "def", "ghi") foreach(println)',
+    'abc\n',
+    'def\n',
+    'ghi\n',
+  );
 });
 
 describe('Tutorial: Dictionaries', async (assert) => {
@@ -121,8 +126,8 @@ describe('Tutorial: Dictionaries', async (assert) => {
     assertReturn('dict keys', ['hello', 'goodbye']);
     assertLogs(
       'dict foreach(k, v, (k..": "..v) println)',
-      'hello: a greeting',
-      'goodbye: a parting',
+      'hello: a greeting\n',
+      'goodbye: a parting\n',
     );
   });
 });
@@ -294,7 +299,7 @@ describe('Tutorial: Introspection', async (assert) => {
       e catch(Exception,
           writeln("Caught: ", e error message)
       )`,
-      'Caught: Address missing: city, state, zipCode',
+      'Caught: Address missing: city, state, zipCode\n',
     );
   });
 });
