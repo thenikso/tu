@@ -5,12 +5,15 @@ import { createEnvironment } from '../index.mjs';
 describe('Tutorial: Comments', async (assert) => {
   const { assertCode } = envTestUtils(createEnvironment, assert);
 
-  assertCode(`#!/usr/bin/env tu
+  assertCode(
+    `#!/usr/bin/env tu
     /**
      * Multi-line comment
      */
     1 + 1 // a line comment
-  `, '1 +(1)');
+  `,
+    '1 +(1)',
+  );
 });
 
 describe('Tutorial: Math', async (assert) => {
@@ -137,7 +140,7 @@ describe('Tutorial: Strings', async (assert) => {
 
   withEnv(() => {
     assertReturn('s := "this is a test"', 'this is a test');
-    assertReturn('words := s split(" ", "\t"); words', [
+    assertReturn(String.raw`words := s split(" ", "\t"); words`, [
       'this',
       'is',
       'a',
@@ -171,8 +174,10 @@ describe('Tutorial: Objects', async (assert) => {
     );
     assertReturn('holmes slotNames', ['name', 'address', 'city']);
     assertReturn(
-      `Contact fullAddress := method(list(name, address, city) join("\n"));
-      holmes fullAddress`,
+      String.raw`
+      Contact fullAddress := method(list(name, address, city) join("\n"));
+      holmes fullAddress
+      `,
       'Holmes\n221B Baker St\nLondon',
     );
     assertReturn(
@@ -183,7 +188,7 @@ describe('Tutorial: Objects', async (assert) => {
 
   withEnv(() => {
     assertReturn(
-      `
+      String.raw`
     Contact := Receiver clone do(
       name ::= nil
       address ::= nil
@@ -202,7 +207,7 @@ describe('Tutorial: Objects', async (assert) => {
     );
 
     assertReturn(
-      `
+      String.raw`
     BusinessContact := Contact clone do(
       companyName ::= "";
       fullAddress := method(
