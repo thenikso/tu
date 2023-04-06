@@ -2,6 +2,7 @@ lockfileVersion: 5.4
 
 specifiers:
   chalk: ^5.2.0
+  minimist: ^1.2.8
   ohm-js: ^17.0.4
   recast: ^0.22.0
   typescript: ^5.0.2
@@ -9,6 +10,7 @@ specifiers:
 
 dependencies:
   chalk: 5.2.0
+  minimist: 1.2.8
 
 devDependencies:
   ohm-js: 17.0.4
@@ -402,6 +404,10 @@ packages:
       gopd: 1.0.1
       has-tostringtag: 1.0.0
     dev: true
+
+  /minimist/1.2.8:
+    resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
+    dev: false
 
   /nanoid/3.3.6:
     resolution: {integrity: sha512-BGcqMMJuToF7i1rt+2PWSNVnWIkGCU78jBG3RxO/bZlnZPK2Cmi2QaffxGO/2RvWi9sL+FAiRiXMgsyxQ1DIDA==}
