@@ -1,6 +1,6 @@
 #!/usr/bin/env tu
 
-Account := Receiver clone do(
+Account := Object clone do(
   balance := 0.0
   deposit := method(v,  balance = balance + v)
   show := method(write("Account balance: $", balance, "\n"))
