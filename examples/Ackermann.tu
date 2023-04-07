@@ -1,4 +1,4 @@
-#!/usr/bin/env io
+#!/usr/bin/env tu
 
 ack := method(m, n,
   //writeln("ack(", m, ",", n, ")")

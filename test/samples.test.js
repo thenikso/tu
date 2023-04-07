@@ -33,7 +33,7 @@ describe('Samples', async (assert) => {
   );
 
   await assertLogs(
-    String.raw`#!/usr/bin/env io
+    String.raw`#!/usr/bin/env tu
 
     ack := method(m, n,
       //writeln("ack(", m, ",", n, ")")
@@ -46,5 +46,13 @@ describe('Samples', async (assert) => {
     "\n" print
     `,
     ['125', '\n'],
+  );
+
+  await assertLogs(
+    String.raw`#!/usr/bin/env tu
+
+    fetch("https://jsonplaceholder.typicode.com/todos/1") json userId println
+    `,
+    '1\n',
   );
 });
