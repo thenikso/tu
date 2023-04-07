@@ -29,7 +29,7 @@ function repl() {
     eval: async function (cmd, context, filename, callback) {
       try {
         const msg = context.Lobby.Message.fromString(cmd);
-        const res = msg.doInContext(context.Lobby);
+        const res = await msg.doInContext(context.Lobby);
         callback(null, res);
       } catch (err) {
         callback(err);
