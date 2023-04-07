@@ -23,6 +23,16 @@
       "./dist/tu.cjs"
     ]
   },
+  "files": [
+    "dist",
+    "lib",
+    "index.d.ts",
+    "index.mjs",
+    "cli.mjs",
+    "package.json",
+    "LICENSE.md",
+    "README.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/thenikso/io.js.git"
