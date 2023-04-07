@@ -5,7 +5,7 @@ import { createEnvironment } from '../index.mjs';
 describe('Tutorial: Comments', async (assert) => {
   const { assertCode } = envTestUtils(createEnvironment, assert);
 
-  assertCode(
+  await assertCode(
     `#!/usr/bin/env tu
     /**
      * Multi-line comment
@@ -19,32 +19,32 @@ describe('Tutorial: Comments', async (assert) => {
 describe('Tutorial: Math', async (assert) => {
   const { assertReturn } = envTestUtils(createEnvironment, assert);
 
-  assertReturn('1+1', 2);
-  assertReturn('1+1 == 2', true);
-  assertReturn('2 sqrt', 1.4142135623730951);
+  await assertReturn('1+1', 2);
+  await assertReturn('1+1 == 2', true);
+  await assertReturn('2 sqrt', 1.4142135623730951);
 });
 
 describe('Tutorial: Variables', async (assert) => {
   const { assertReturn, withEnv } = envTestUtils(createEnvironment, assert);
 
-  withEnv(() => {
-    assertReturn('a := 1', 1);
-    assertReturn('a', 1);
-    assertReturn('b := 2 * 3', 6);
-    assertReturn('a + b', 7);
+  await withEnv(async () => {
+    await assertReturn('a := 1', 1);
+    await assertReturn('a', 1);
+    await assertReturn('b := 2 * 3', 6);
+    await assertReturn('a + b', 7);
   });
 });
 
 describe('Tutorial: Conditions', async (assert) => {
   const { withEnv, assertLogs } = envTestUtils(createEnvironment, assert);
 
-  withEnv(() => {
-    assertLogs(
+  await withEnv(async () => {
+    await assertLogs(
       `a := 2;
       (a == 1) ifTrue("a is one" println) ifFalse("a is not one" println)`,
       'a is not one\n',
     );
-    assertLogs(
+    await assertLogs(
       'if(a == 1, writeln("a is one"), writeln("a is not one"))',
       'a is not one\n',
     );
@@ -57,30 +57,32 @@ describe('Tutorial: List', async (assert) => {
     assert,
   );
 
-  withEnv(() => {
-    assertReturn('d := List clone append(30, 10, 5, 20)', [30, 10, 5, 20]);
-    assertReturn('d size', 4);
-    // assertLogs('d print', 'list(30, 10, 5, 20)');
-    assertLogs('d print', '30,10,5,20');
-    assertReturn('d := d sort', [5, 10, 20, 30]);
-    assertReturn('d first', 5);
-    assertReturn('d last', 30);
-    assertReturn('d at(2)', 20);
-    assertReturn('d remove(30)', [5, 10, 20]);
-    assertReturn('d atPut(1, 123)', [5, 123, 20]);
+  await withEnv(async () => {
+    await assertReturn(
+      'd := List clone append(30, 10, 5, 20)',
+      [30, 10, 5, 20],
+    );
+    await assertReturn('d size', 4);
+    // await assertLogs('d print', 'list(30, 10, 5, 20)');
+    await assertLogs('d print', '30,10,5,20');
+    await assertReturn('d := d sort', [5, 10, 20, 30]);
+    await assertReturn('d first', 5);
+    await assertReturn('d last', 30);
+    await assertReturn('d at(2)', 20);
+    await assertReturn('d remove(30)', [5, 10, 20]);
+    await assertReturn('d atPut(1, 123)', [5, 123, 20]);
   });
 
-  assertReturn('list(30, 10, 5, 20) select(>10)', [30, 20]);
-  assertReturn('list(30, 10, 5, 20) detect(>10)', 30);
-  assertReturn('list(30, 10, 5, 20) map(*2)', [60, 20, 10, 40]);
-  assertReturn('list(30, 10, 5, 20) map(v, v*2)', [60, 20, 10, 40]);
+  await assertReturn('list(30, 10, 5, 20) select(>10)', [30, 20]);
+  await assertReturn('list(30, 10, 5, 20) detect(>10)', 30);
+  await assertReturn('list(30, 10, 5, 20) map(*2)', [60, 20, 10, 40]);
+  await assertReturn('list(30, 10, 5, 20) map(v, v*2)', [60, 20, 10, 40]);
 });
 
 describe('Tutorial: Loops', async (assert) => {
   const { assertLogs } = envTestUtils(createEnvironment, assert);
 
-  assertLogs(
-    'for(i, 1, 10, writeln(i))',
+  await assertLogs('for(i, 1, 10, writeln(i))', [
     '1\n',
     '2\n',
     '3\n',
@@ -91,19 +93,17 @@ describe('Tutorial: Loops', async (assert) => {
     '8\n',
     '9\n',
     '10\n',
-  );
-  assertLogs(
-    'list(5, 123, 20) foreach(i, v, writeln(i, ": ", v))',
+  ]);
+  await assertLogs('list(5, 123, 20) foreach(i, v, writeln(i, ": ", v))', [
     '0: 5\n',
     '1: 123\n',
     '2: 20\n',
-  );
-  assertLogs(
-    'list("abc", "def", "ghi") foreach(println)',
+  ]);
+  await assertLogs('list("abc", "def", "ghi") foreach(println)', [
     'abc\n',
     'def\n',
     'ghi\n',
-  );
+  ]);
 });
 
 describe('Tutorial: Dictionaries', async (assert) => {
@@ -112,8 +112,8 @@ describe('Tutorial: Dictionaries', async (assert) => {
     assert,
   );
 
-  withEnv(() => {
-    assertReturn(
+  await withEnv(async () => {
+    await assertReturn(
       `
       dict := Map clone;
       dict atPut("hello", "a greeting");
@@ -121,55 +121,54 @@ describe('Tutorial: Dictionaries', async (assert) => {
       dict hasKey("hello")`,
       true,
     );
-    assertReturn('dict hasValue("a greeting")', true);
-    assertReturn('dict at("hello")', 'a greeting');
-    assertReturn('dict keys', ['hello', 'goodbye']);
-    assertLogs(
-      'dict foreach(k, v, (k..": "..v) println)',
+    await assertReturn('dict hasValue("a greeting")', true);
+    await assertReturn('dict at("hello")', 'a greeting');
+    await assertReturn('dict keys', ['hello', 'goodbye']);
+    await assertLogs('dict foreach(k, v, (k..": "..v) println)', [
       'hello: a greeting\n',
       'goodbye: a parting\n',
-    );
+    ]);
   });
 });
 
 describe('Tutorial: Strings', async (assert) => {
   const { withEnv, assertReturn } = envTestUtils(createEnvironment, assert);
 
-  withEnv(() => {
-    assertReturn('a := "foo"', 'foo');
-    assertReturn('b := "bar"', 'bar');
-    assertReturn('c := a..b', 'foobar');
-    assertReturn('c at(0)', 102);
-    assertReturn('c at(0) asCharacter', 'f');
+  await withEnv(async () => {
+    await assertReturn('a := "foo"', 'foo');
+    await assertReturn('b := "bar"', 'bar');
+    await assertReturn('c := a..b', 'foobar');
+    await assertReturn('c at(0)', 102);
+    await assertReturn('c at(0) asCharacter', 'f');
   });
 
-  withEnv(() => {
-    assertReturn('s := "this is a test"', 'this is a test');
-    assertReturn(String.raw`words := s split(" ", "\t"); words`, [
+  await withEnv(async () => {
+    await assertReturn('s := "this is a test"', 'this is a test');
+    await assertReturn(String.raw`words := s split(" ", "\t"); words`, [
       'this',
       'is',
       'a',
       'test',
     ]);
-    assertReturn('words join(" ")', 'this is a test');
-    assertReturn('s find("is")', 2);
-    assertReturn('s find("test")', 10);
-    assertReturn('s slice(10)', 'test');
-    assertReturn('s slice(2, 10)', 'is is a ');
+    await assertReturn('words join(" ")', 'this is a test');
+    await assertReturn('s find("is")', 2);
+    await assertReturn('s find("test")', 10);
+    await assertReturn('s slice(10)', 'test');
+    await assertReturn('s slice(2, 10)', 'is is a ');
   });
 });
 
 describe('Tutorial: Objects', async (assert) => {
   const { withEnv, assertReturn } = envTestUtils(createEnvironment, assert);
 
-  withEnv(() => {
-    assertReturn('Contact := Receiver clone', {});
-    assertReturn('Contact type', 'Contact');
-    assertReturn('Contact proto type', 'Receiver');
-    assertReturn('Contact name ::= nil', null);
-    assertReturn('Contact address ::= nil', null);
-    assertReturn('Contact city ::= nil', null);
-    assertReturn(
+  await withEnv(async () => {
+    await assertReturn('Contact := Receiver clone', {});
+    await assertReturn('Contact type', 'Contact');
+    await assertReturn('Contact proto type', 'Receiver');
+    await assertReturn('Contact name ::= nil', null);
+    await assertReturn('Contact address ::= nil', null);
+    await assertReturn('Contact city ::= nil', null);
+    await assertReturn(
       'holmes := Contact clone setName("Holmes") setAddress("221B Baker St") setCity("London")',
       {
         name: 'Holmes',
@@ -177,22 +176,22 @@ describe('Tutorial: Objects', async (assert) => {
         city: 'London',
       },
     );
-    assertReturn('holmes slotNames', ['name', 'address', 'city']);
-    assertReturn(
+    await assertReturn('holmes slotNames', ['name', 'address', 'city']);
+    await assertReturn(
       String.raw`
       Contact fullAddress := method(list(name, address, city) join("\n"));
       holmes fullAddress
       `,
       'Holmes\n221B Baker St\nLondon',
     );
-    assertReturn(
+    await assertReturn(
       'holmes getSlot("fullAddress") toString',
       String.raw`method(list(name, address, city) join("\n"))`,
     );
   });
 
-  withEnv(() => {
-    assertReturn(
+  await withEnv(async () => {
+    await assertReturn(
       String.raw`
     Contact := Receiver clone do(
       name ::= nil
@@ -211,7 +210,7 @@ describe('Tutorial: Objects', async (assert) => {
       ],
     );
 
-    assertReturn(
+    await assertReturn(
       String.raw`
     BusinessContact := Contact clone do(
       companyName ::= "";
@@ -255,8 +254,8 @@ describe('Tutorial: Introspection', async (assert) => {
     assert,
   );
 
-  withEnv(() => {
-    assertError(
+  await withEnv(async () => {
+    await assertError(
       `
       Address := Receiver clone do(
         fields ::= list("name", "street", "city", "state", "zipCode");
@@ -290,7 +289,7 @@ describe('Tutorial: Introspection', async (assert) => {
       'Address missing: city, state, zipCode',
     );
 
-    assertLogs(
+    await assertLogs(
       `
       e := try(
         anAddress assertValid
@@ -307,5 +306,5 @@ describe('Tutorial: Introspection', async (assert) => {
 // describe('Tutorial: ', async (assert) => {
 //   const { withEnv, assertReturn, assertLogs, assertError } = envTestUtils(createEnvironment, assert);
 
-//   assertReturn('', );
+//   await assertReturn('', );
 // });

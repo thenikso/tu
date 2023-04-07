@@ -3,9 +3,9 @@ import { describe, envTestUtils } from './runner/index.mjs';
 import { createEnvironment } from '../index.mjs';
 
 describe('Samples', async (assert) => {
-  const { assertLogs } = envTestUtils(createEnvironment, assert);
+  const { assertLogs } = envTestUtils(createEnvironment, assert, true);
 
-  assertLogs(
+  await assertLogs(
     String.raw`#!/usr/bin/env tu
 
   Account := Receiver clone do(
@@ -23,15 +23,16 @@ describe('Samples', async (assert) => {
   "Final: " print
   Account show
   `,
-
-    'Inital: ',
-    'Account balance: $0\n',
-    'Depositing $10\n',
-    'Final: ',
-    'Account balance: $10\n',
+    [
+      'Inital: ',
+      'Account balance: $0\n',
+      'Depositing $10\n',
+      'Final: ',
+      'Account balance: $10\n',
+    ],
   );
 
-  assertLogs(
+  await assertLogs(
     String.raw`#!/usr/bin/env io
 
     ack := method(m, n,
@@ -44,6 +45,6 @@ describe('Samples', async (assert) => {
     ack(3, 4) print
     "\n" print
     `,
-    '125', '\n',
+    ['125', '\n'],
   );
 });

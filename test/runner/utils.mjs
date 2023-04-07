@@ -1,4 +1,4 @@
-export function envTestUtils(createEnvironment, assert) {
+export function envTestUtils(createEnvironment, assert, defaultShowTime = false) {
   let currentEnv = null;
   let currentLogs = [];
   const createEnv = (options) => {
@@ -20,31 +20,29 @@ export function envTestUtils(createEnvironment, assert) {
       },
     });
   return {
-    assertReturn(code, ret) {
-      assert({
-        given: `\`${code}\``,
-        should: `return ${typeof ret === 'string' ? `"${ret}"` : ret}`,
-        actual: (currentEnv ?? createEnv()).eval(code),
-        expected: ret,
-      });
-    },
-    async assertAsyncReturn(code, ret) {
+    async assertReturn(code, ret, showTime = defaultShowTime) {
+      const startTime = showTime ? performance.now() : 0;
       assert({
         given: `\`${code}\``,
         should: `return ${typeof ret === 'string' ? `"${ret}"` : ret}`,
         actual: await (currentEnv ?? createEnv()).eval(code),
         expected: ret,
       });
+      if (showTime) {
+        const endTime = performance.now();
+        console.log(`took ${endTime - startTime}ms`);
+      }
     },
-    assertError(code, error) {
+    async assertError(code, error, showTime = defaultShowTime) {
+      const startTime = showTime ? performance.now() : 0;
       assert({
         given: `\`${code}\``,
         should: `throw "${error}"`,
-        actual: (() => {
+        actual: await (async () => {
           let res;
           let err;
           try {
-            res = (currentEnv ?? createEnv()).eval(code);
+            res = await (currentEnv ?? createEnv()).eval(code);
           } catch (e) {
             err = e;
           }
@@ -52,30 +50,45 @@ export function envTestUtils(createEnvironment, assert) {
         })(),
         expected: error,
       });
+      if (showTime) {
+        const endTime = performance.now();
+        console.log(`took ${endTime - startTime}ms`);
+      }
     },
-    assertCode(code, expected) {
+    assertCode(code, expected, showTime = defaultShowTime) {
+      const startTime = showTime ? performance.now() : 0;
       assert({
         given: `\`${code}\``,
         should: `parse as \`${expected}\``,
         actual: (currentEnv ?? createEnv()).parse(code).toString(),
         expected,
       });
+      if (showTime) {
+        const endTime = performance.now();
+        console.log(`took ${endTime - startTime}ms`);
+      }
     },
-    assertLogs(code, ...logs) {
+    async assertLogs(code, logs, showTime = defaultShowTime) {
+      logs = Array.isArray(logs) ? logs : [logs];
+      const startTime = showTime ? performance.now() : 0;
       assert({
         given: `\`${code}\``,
         should: `logs ${logs.map((l) => `"${l}"`).join(', ')}`,
-        actual: (() => {
+        actual: await (async () => {
           currentLogs = [];
-          (currentEnv ?? logEnv()).eval(code);
+          await (currentEnv ?? logEnv()).eval(code);
           return currentLogs;
         })(),
         expected: logs,
       });
+      if (showTime) {
+        const endTime = performance.now();
+        console.log(`took ${endTime - startTime}ms`);
+      }
     },
-    withEnv(fn, env) {
+    async withEnv(fn, env) {
       currentEnv = env ?? logEnv();
-      fn(currentEnv);
+      await fn(currentEnv);
       currentEnv = null;
     },
   };
