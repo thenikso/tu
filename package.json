@@ -1,5 +1,5 @@
 {
-  "name": "tu",
+  "name": "@nikso/tu",
   "version": "0.0.4",
   "description": "An implementation of the Io programming language in Javascript",
   "main": "dist/tu.cjs",

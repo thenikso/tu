@@ -27,7 +27,7 @@ implemented, and the API is subject to change.
 To install globally, run:
 
 ```
-npm install -g @thenikso/tu
+npm install -g @nikso/tu
 ```
 
 ## Using the REPL
