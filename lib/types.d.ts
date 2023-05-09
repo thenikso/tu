@@ -46,7 +46,10 @@ export type Message = {
   setNext: (message: Message | null) => Message;
   previous: Message | null;
   setPrevious: (message: Message | null) => Message;
-  doInContext: <T extends Receiver>(context: T, locals?: Locals<any, T>) => Promise<any>;
+  doInContext: <T extends Receiver>(
+    context: T,
+    locals?: Locals<any, T>,
+  ) => Promise<any>;
 } & Receiver;
 
 export type Method = (...args: any[]) => any;
@@ -76,8 +79,11 @@ export type Call<T extends Receiver> = {
 };
 
 type StopStatus = {
-  return: boolean;
-}
+  isReturn: boolean;
+  stopLooping: boolean;
+  isBreak: boolean;
+  isContinue: boolean;
+};
 
 export type Locals<
   L extends Record<string, any> = {},

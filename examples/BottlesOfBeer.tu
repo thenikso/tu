@@ -1,4 +1,4 @@
-#!/usr/bin/env io
+#!/usr/bin/env tu
 
 bottle := method(i,
 	if(i==0, return "no more bottles of beer")
