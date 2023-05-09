@@ -75,12 +75,17 @@ export type Call<T extends Receiver> = {
   evalArgAt: (index: number) => Promise<any>;
 };
 
+type StopStatus = {
+  return: boolean;
+}
+
 export type Locals<
   L extends Record<string, any> = {},
   T extends Receiver = Receiver,
 > = {
   self: T;
   call: Call<T>;
+  stopStatus: StopStatus;
 } & L;
 
 type PropertyDescriptor<T> =
