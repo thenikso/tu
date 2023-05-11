@@ -28,4 +28,10 @@ describe('Samples', async (assert) => {
       return [logs.length];
     },
   });
+
+  await assertLogs(await loadFile('../examples/ControlFlow.tu'), [
+    'break:    OK\n',
+    'continue: OK\n',
+    'return:   OK\n',
+  ]);
 });
