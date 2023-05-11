@@ -2,19 +2,19 @@
 
 exampleBreak := method(
 	b := Sequence clone
-	for(i, 0, 10, if(i == 5, break); b appendSeq(i asString))
+	for(i, 0, 10, if(i == 5, break); b appendSeq(i toString))
 	b
 )
 
 exampleContinue := method(
 	b := Sequence clone
-	for(i, 0, 10, if(i == 5, continue); b appendSeq(i asString))
+	for(i, 0, 10, if(i == 5, continue); b appendSeq(i toString))
 	b
 )
 
 exampleReturn := method(
 	b := Sequence clone
-	for(i, 0, 10, if(i == 5, return b); b appendSeq(i asString))
+	for(i, 0, 10, if(i == 5, return b); b appendSeq(i toString))
 	b
 )
 

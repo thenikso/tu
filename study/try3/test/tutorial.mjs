@@ -172,7 +172,7 @@ describe('Tutorial: Objects', async (assert) => {
       'Holmes\n221B Baker St\nLondon',
     );
     assertReturn(
-      'holmes getSlot("fullAddress") asString',
+      'holmes getSlot("fullAddress") toString',
       String.raw`method(list(name, address, city) join("\n"))`,
     );
   });
@@ -226,7 +226,7 @@ describe('Tutorial: Lazy Evaluation', async (assert) => {
     `
     assert := method(
       call sender doMessage(call message argAt(0)) ifFalse(
-        Exception raise("failed assertion: " .. call message asString)
+        Exception raise("failed assertion: " .. call message toString)
       )
     );
 
