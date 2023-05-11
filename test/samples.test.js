@@ -3,7 +3,9 @@ import { describe, envTestUtils, loadFile } from './runner/index.mjs';
 import { createEnvironment } from '../index.mjs';
 
 describe('Samples', async (assert) => {
-  const { assertLogs } = envTestUtils(createEnvironment, assert, true);
+  const { assertLogs } = envTestUtils(createEnvironment, assert, {
+    showTime: true,
+  });
 
   await assertLogs(await loadFile('../examples/Account.tu'), [
     'Inital: ',
@@ -18,9 +20,17 @@ describe('Samples', async (assert) => {
   await assertLogs(
     String.raw`#!/usr/bin/env tu
 
-    fetch("https://jsonplaceholder.typicode.com/todos/1") json userId println
+    fetch("https://jsonplaceholder.typicode.com/todos/1") json id println
     `,
     '1\n',
+  );
+
+  await assertLogs(
+    String.raw`#!/usr/bin/env tu
+
+    writeln(fetch("https://jsonplaceholder.typicode.com/todos/2") json id)
+    `,
+    '2\n',
   );
 
   await assertLogs(await loadFile('../examples/BottlesOfBeer.tu'), 99 * 3, {

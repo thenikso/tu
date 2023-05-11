@@ -75,7 +75,7 @@ export type Call<T extends Receiver> = {
   /**
    * Evaluate the argument at the given index in the sender's context.
    */
-  evalArgAt: (index: number) => Promise<any>;
+  evalArgAt: (index: number) => any;
 };
 
 type StopStatus = {
