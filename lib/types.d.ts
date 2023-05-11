@@ -78,20 +78,12 @@ export type Call<T extends Receiver> = {
   evalArgAt: (index: number) => any;
 };
 
-type StopStatus = {
-  isReturn: boolean;
-  stopLooping: boolean;
-  isBreak: boolean;
-  isContinue: boolean;
-};
-
 export type Locals<
   L extends Record<string, any> = {},
   T extends Receiver = Receiver,
 > = {
   self: T;
   call: Call<T>;
-  stopStatus: StopStatus;
 } & L;
 
 type PropertyDescriptor<T> =
