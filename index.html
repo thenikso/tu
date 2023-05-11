@@ -4,6 +4,9 @@
   </head>
   <body>
     Check console for test results
+    <script type="text/tu">
+      "Tests" println
+    </script>
     <script type="module" src="./test/index.js"></script>
     <script type="module">
       import { createEnvironment } from './index.mjs';
@@ -11,6 +14,12 @@
       const env = createEnvironment();
       globalThis.Lobby = env.Lobby;
       globalThis.tu = env.tu;
+
+      // How scripts could be run
+      const scripts = document.querySelectorAll('script[type="text/tu"]');
+      for (const script of scripts) {
+        env.run(script.textContent);
+      }
     </script>
   </body>
 </html>
