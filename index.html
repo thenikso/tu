@@ -8,12 +8,11 @@
       "Tests" println
 
       // My first actual usage!
-      d := Document createElement("div")
+      d := Document createElement("button")
       Document body appendChild(d)
-      d innerText = "hey"
-      l := method(e, writeln(e))
+      d innerText = "click me"
+      l := method(e, writeln("event received: ", e))
       d addEventListener("click", getSlot("l") toJs)
-      // TODO fix `toJs` or make `method`s compatible with js
     </script>
     <script type="module" src="./test/index.js"></script>
     <script type="module">
