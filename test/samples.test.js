@@ -44,4 +44,12 @@ describe('Samples', async (assert) => {
     'continue: OK\n',
     'return:   OK\n',
   ]);
+
+  await assertLogs(await loadFile('../examples/Conditions.tu'), [
+    'test1: OK\n',
+    'test2: OK\n',
+    'test3: OK\n',
+    'test4: OK\n',
+    'test5: OK\n',
+  ]);
 });
