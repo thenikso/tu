@@ -84,6 +84,12 @@ export type Locals<
 > = {
   self: T;
   call: Call<T>;
+  // Stop status
+  stopStatus: number;
+  resetStopStatus: () => void;
+  return: (value: any) => any;
+  break: () => void;
+  continue: () => void;
 } & L;
 
 type PropertyDescriptor<T> =

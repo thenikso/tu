@@ -52,4 +52,6 @@ describe('Samples', async (assert) => {
     'test4: OK\n',
     'test5: OK\n',
   ]);
+
+  await assertLogs(await loadFile('../examples/Foreach.tu'), ['b := 2\n']);
 });
