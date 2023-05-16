@@ -54,4 +54,31 @@ describe('Samples', async (assert) => {
   ]);
 
   await assertLogs(await loadFile('../examples/Foreach.tu'), ['b := 2\n']);
+
+  await assertLogs(await loadFile('../examples/Hanoi.tu'), [
+    '1 --> 3\n',
+    '1 --> 2\n',
+    '3 --> 2\n',
+    '1 --> 3\n',
+    '2 --> 1\n',
+    '2 --> 3\n',
+    '1 --> 3\n',
+  ]);
+
+  await assertLogs(await loadFile('../examples/Inheritance.tu'), [
+    'Dog bark: ',
+    'woof!',
+    '\n',
+    'Chiwawa bark: ',
+    'yip!',
+    '\n',
+    'myChiwawa bark: ',
+    'Yo Quiero Taco Bell',
+    '\n',
+  ]);
+
+  await assertLogs(await loadFile('../examples/Sort.tu'), [
+    'original: video killed the radio star\n',
+    'sortBy:   killed radio star the video\n',
+  ]);
 });
