@@ -11,8 +11,8 @@
       d := Document createElement("button")
       Document body appendChild(d)
       d innerText = "click me"
-      l := method(e, writeln("event received: ", e))
-      d addEventListener("click", getSlot("l") toJs)
+      l := block(e, writeln("event received: ", e))
+      d addEventListener("click", getSlot("l") asJsFunction)
     </script>
     <script type="module" src="./test/index.js"></script>
     <script type="module">

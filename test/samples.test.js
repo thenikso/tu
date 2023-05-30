@@ -81,4 +81,6 @@ describe('Samples', async (assert) => {
     'original: video killed the radio star\n',
     'sortBy:   killed radio star the video\n',
   ]);
+
+  // await assertLogs(await loadFile('../examples/Super.tu'), []);
 });
